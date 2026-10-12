@@ -117,18 +117,14 @@ curl --proto '=https' --tlsv1.2 -LsSf https://github.com/onehorizonai/domainjaeg
 powershell -ExecutionPolicy Bypass -c "irm https://github.com/onehorizonai/domainjaeger/releases/latest/download/domainjaeger-installer.ps1 | iex"
 ```
 
-**Cargo**, if you have Rust
-
-```sh
-cargo install domainjaeger       # builds it from crates.io
-cargo binstall domainjaeger      # or fetches the prebuilt binary
-```
-
-**From source**
+**Cargo**, if you have Rust. This builds it from source:
 
 ```sh
 cargo install --git https://github.com/onehorizonai/domainjaeger
 ```
+
+domainjaeger is not on crates.io yet, so `cargo install domainjaeger` and
+`cargo binstall domainjaeger` do not work for now.
 
 **By hand.** Download the archive for your computer from
 [Releases](https://github.com/onehorizonai/domainjaeger/releases/latest), unpack it
