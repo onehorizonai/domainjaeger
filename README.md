@@ -19,6 +19,10 @@ the dictionary, lets the extension finish it, and asks the registry whether
 the name is free. What reaches your screen is a list of names you can still
 register.
 
+<p align="center">
+  <img src="assets/screenshots/hunt.png" alt="A finished round in the terminal: ten names shown as available, among them hunt.ing, programm.ing and che.app, each with the word it is made of and what that word means." width="800">
+</p>
+
 ```
 cooking   → cook.ing       exact
 snap      → sn.app         small typo ("snapp")
@@ -196,6 +200,10 @@ faster, tell the dictionary who you are: see [Speed](#speed).
 The home screen shows Start on top and, under it, how the hunt is set up.
 Nothing is looked up until you put the arrow on Start and press enter.
 
+<p align="center">
+  <img src="assets/screenshots/home.png" alt="The home screen: Start hunting on top, and under it the setup, with a line for every setting and the command that changes it." width="800">
+</p>
+
 Move with the arrow keys. Enter on a setting opens its list of choices. Pick
 one, press enter, and you are back where you were. Esc goes back without
 changing anything. Space does the same as enter.
@@ -280,6 +288,13 @@ line.
 | `reset` | start the dictionary from the first page again |
 | `h` | show every command, grouped |
 | `q` | quit |
+
+Here `c` tries two words. For clothing, cloth.ing shows as available and
+clothi.ng as taken. For today, both names show as taken.
+
+<p align="center">
+  <img src="assets/screenshots/check.png" alt="Two words tried with c. For clothing, cloth.ing shows as available and clothi.ng as taken. For today, to.day and tod.ai both show as taken." width="800">
+</p>
 
 ### Without the shell
 

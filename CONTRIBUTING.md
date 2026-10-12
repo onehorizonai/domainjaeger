@@ -127,6 +127,24 @@ Check at 80 columns by 24 lines, the smallest window the menu is drawn in.
 Also run the program with its input piped (`printf 'h\nq\n' | domainjaeger
 --db /tmp/scratch.sqlite`) to see the screen it falls back to.
 
+## The pictures in the README
+
+The banner and the screenshots are made by two scripts, so they do not depend
+on anyone's own terminal:
+
+```sh
+python3 assets/banner.py        # assets/banner.png
+python3 assets/screenshots.py   # assets/screenshots/*.png, about five minutes
+```
+
+`screenshots.py` works the way the menu is tested: it runs the program in a
+pseudo-terminal and paints what the emulator holds. Its hunt is real and
+anonymous, on a fresh cache in a temporary folder. Run it when a screen
+changes. The names it finds are different every time, so afterwards bring the
+text and the alt texts around the pictures in `README.md` in line, and check
+the names a picture shows as available at their registries. It needs macOS,
+Pillow and pyte.
+
 ## Style
 
 - **Plain words on screen.** "Extension", not TLD. "Parts", not syllables.
