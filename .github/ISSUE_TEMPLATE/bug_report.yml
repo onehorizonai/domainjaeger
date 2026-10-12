@@ -1,0 +1,78 @@
+name: Bug report
+description: Something does not work the way it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time. A few details make a bug much easier to find.
+        Found a security problem? Do not report it here: see SECURITY.md.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw. Paste the text from the terminal if you can.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen again
+      description: The command you ran, the settings on the home screen, and what you typed or pressed.
+      placeholder: |
+        1. domainjaeger --lang nl --tlds ai
+        2. Press enter on Start
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The output of `domainjaeger --version`.
+      placeholder: domainjaeger 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: system
+    attributes:
+      label: System
+      description: domainjaeger is tested on macOS (Apple Silicon) only. Reports from other systems are very welcome.
+      options:
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux
+        - Windows
+        - Something else
+    validations:
+      required: true
+  - type: input
+    id: terminal
+    attributes:
+      label: Terminal and font
+      description: For anything about how the screen looks.
+      placeholder: Terminal.app, Menlo
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you installed it
+      options:
+        - Homebrew
+        - Shell or PowerShell installer
+        - cargo install
+        - cargo binstall
+        - Built from source
+        - Downloaded from Releases
+    validations:
+      required: true
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Leave out your e-mail address and anything else you would rather keep private.

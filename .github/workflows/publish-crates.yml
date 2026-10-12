@@ -1,0 +1,34 @@
+# Publishes the crate to crates.io, so that `cargo install domainjaeger` and
+# `cargo binstall domainjaeger` find the new version. The release workflow
+# calls this after the GitHub Release is up (see `publish-jobs` in
+# dist-workspace.toml). Without a CARGO_REGISTRY_TOKEN secret it does nothing.
+name: Publish to crates.io
+
+on:
+  workflow_call:
+    inputs:
+      plan:
+        description: The release plan of dist, as JSON
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  crates-io:
+    name: cargo publish
+    runs-on: ubuntu-latest
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+    steps:
+      - name: Skip without a token
+        if: env.CARGO_REGISTRY_TOKEN == ''
+        run: echo "::notice::No CARGO_REGISTRY_TOKEN secret, so nothing is published to crates.io."
+      - uses: actions/checkout@v4
+        if: env.CARGO_REGISTRY_TOKEN != ''
+        with:
+          persist-credentials: false
+      - name: Publish
+        if: env.CARGO_REGISTRY_TOKEN != ''
+        run: cargo publish --locked

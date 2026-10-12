@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security problem
+    url: https://github.com/onehorizonai/domainjaeger/security/advisories/new
+    about: Please report vulnerabilities in private, not in a public issue.
+  - name: Read the troubleshooting guide
+    url: https://github.com/onehorizonai/domainjaeger#troubleshooting
+    about: Slow rounds, extensions that show nothing, a menu that does not appear.

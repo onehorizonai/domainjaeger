@@ -1,0 +1,34 @@
+name: Feature request
+description: An idea that would make domainjaeger better.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you are trying to do
+      description: The names you are after, or the moment the app got in your way.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: How you picture it. A sketch of the screen or the command is welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do now instead
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where it belongs
+      options:
+        - A language or the dictionary
+        - Name styles and typos
+        - Extensions and how they are checked
+        - The home screen and commands
+        - Export and the cache
+        - Installing
+        - Something else

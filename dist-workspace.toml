@@ -1,0 +1,33 @@
+[workspace]
+members = ["cargo:."]
+
+# How releases are built and delivered. `dist` (cargo-dist) reads this file
+# and writes .github/workflows/release.yml from it: after a change here, run
+# `dist generate`. See docs/RELEASING.md.
+[dist]
+# The dist version the release workflow installs
+cargo-dist-version = "0.33.0"
+# Releases are built by GitHub Actions, when a v* tag is pushed
+ci = "github"
+# What a release offers besides the archives: `curl | sh`, `irm | iex`, and
+# a Homebrew formula
+installers = ["shell", "powershell", "homebrew"]
+# The platforms a release is built for. Only macOS on Apple Silicon has been
+# run by a person: the others are built and unit-tested by CI, nothing more.
+targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
+# Where the two script installers put the program
+install-path = ["$XDG_BIN_HOME/", "~/.local/bin"]
+# No separate updater program: installing again updates
+install-updater = false
+# What the script installers say when they are done
+install-success-msg = "domainjaeger is installed. Start it with: domainjaeger"
+# The Homebrew tap the formula is pushed to: brew install onehorizonai/tap/domainjaeger
+tap = "onehorizonai/homebrew-tap"
+formula = "domainjaeger"
+# After the GitHub Release is up: push the formula, then publish the crate
+# (.github/workflows/publish-crates.yml, skipped without a crates.io token)
+publish-jobs = ["homebrew", "./publish-crates"]
+# The crates.io job only has to read the repository
+github-custom-job-permissions = { "publish-crates" = { contents = "read" } }
+# On a pull request: check that a release could be planned, build nothing
+pr-run-mode = "plan"
