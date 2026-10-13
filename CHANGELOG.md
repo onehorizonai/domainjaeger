@@ -6,10 +6,13 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-13
+
 ### Added
 
 - A new kind of typo, the missing letter: numbers makes nmbe.rs, and
-  nmbers.nl as a whole word.
+  nmbers.nl as a whole word. With all typos on, one word in ten gets such a
+  name. Picked on its own, every word does.
 - Typos are a choice: all of them, none, or one kind. Pick it on the home
   screen, type `typos missing`, or start with `--typos missing`. The kinds
   are doubled, dropped, sound, swapped and missing. `--no-typos` still works.
@@ -58,5 +61,6 @@ The first public version.
 - The registries of `.es`, `.as`, `.al` and `.na` do not answer public
   lookups, so names there are never reported as available.
 
-[Unreleased]: https://github.com/onehorizonai/domainjaeger/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/onehorizonai/domainjaeger/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/onehorizonai/domainjaeger/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/onehorizonai/domainjaeger/releases/tag/v0.1.0
