@@ -188,7 +188,7 @@ type, and a flag when you start.
 | Category | all words, or only those about one subject | `cat finance` | `--category finance` |
 | Rude words | vulgar, offensive, sexual and violent words: shown with a ⚠, or left out | `rude off` | `--no-rude` |
 | Name style | the dot inside the word (cook.ing), or the whole word before it (lemon.nl) | `w` | `--whole` |
-| Typos | small misspellings too (sn.app), or exact words only | `typos off` | `--no-typos` |
+| Typos | every small misspelling (sn.app), one kind of them, or exact words only | `typos off`, `typos missing` | `--typos off` |
 | Add before, Add after | a word of your own around every word: headspeed, speedbox | `before head`, `after box` | `--prefix head`, `--suffix box` |
 | Extensions | the extensions to hunt in | `t ai io app` | `--tlds ai,io,app` |
 | Per round | how many names to find before it stops | `count 20` | `--count 20` |
@@ -199,11 +199,12 @@ and Dutch ones from [WikiWoordenboek](https://nl.wiktionary.org). There is no
 word list in this repository. Every available name comes with what its word
 means, in English for all four languages.
 
-**Category.** Four are built in, each with a sign of its own: `$` finance,
-`>` tech, `#` product and `@` names. Any topic the dictionary has works as
-well: `cat music`. `cat list` shows them all, and `cat off` goes back to the
-whole dictionary. `cat names` hunts among first names: luc.as, or mike.ai with
-whole words on.
+**Category.** Four are built in, each with a sign of its own: `$` finance, `>`
+tech, `#` product and `@` names. Any topic the dictionary has works as well:
+`cat music`. Capitals do not matter, and neither does a last s: `cat animal`
+finds Animals. `cat list` shows them all, and `cat off` goes back to the whole
+dictionary. `cat names` hunts among first names: luc.as, or mike.ai with whole
+words on.
 
 **Name style.** The whole word before the dot is for extensions no word ends
 in, like `.nl` and `.com`: lemon.nl, or lemmon.nl with a small typo. It hunts
@@ -211,8 +212,10 @@ in `.nl` unless you name other extensions: `w com nl`. `w off` puts the dot
 back inside the word.
 
 **Typos.** A typo is one small step from the real spelling: a doubled letter
-(sn.app), a dropped double (especia.ly), a sound-alike (tod.ai) or two swapped
-letters (delicio.su).
+(sn.app), a dropped double (especia.ly), a sound-alike (tod.ai), two swapped
+letters (delicio.su) or a missing letter (nmbe.rs). You get all of them, none,
+or one kind: `typos missing`. The kinds are `doubled`, `dropped`, `sound`,
+`swapped` and `missing`.
 
 **Add before, Add after.** `after box` makes speedbox, `before head` makes
 headspeed. These are whole names, so setting one switches the name style.

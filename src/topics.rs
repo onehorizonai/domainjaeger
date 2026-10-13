@@ -179,23 +179,34 @@ fn bundle(name: &str) -> Option<&'static Bundle> {
 /// it made of built-in categories only?
 pub fn is_built_in(input: &str) -> bool {
     let mut names = input
-        .split([',', '+', ' '])
+        .split(|c: char| c == ',' || c == '+' || c.is_whitespace())
         .filter(|s| !s.is_empty())
         .peekable();
     names.peek().is_some() && names.all(|name| bundle(name).is_some())
 }
 
+/// A name as it is compared: capitals and extra spaces do not matter, so
+/// " Animal  sounds" is "animal sounds".
+fn plain(name: &str) -> String {
+    let words: Vec<String> = name.split_whitespace().map(str::to_lowercase).collect();
+    words.join(" ")
+}
+
 /// Turn "finance", "tech+muziek" or "Chemisch element" into a category.
-/// `known` are the topics the dictionary has, in its own spelling.
+/// `known` are the topics the dictionary has, in its own spelling. Capitals
+/// and spaces do not matter, and a topic is found with or without its last
+/// s: "animal" is Animals.
 pub fn resolve(lang: Lang, input: &str, known: &[String]) -> Result<Category> {
     let find = |name: &str| -> Option<(String, Vec<String>)> {
-        if let Some(b) = bundle(name) {
+        if let Some(b) = bundle(name.trim()) {
             let topics = b.topics(lang).iter().map(|t| t.to_string()).collect();
             return Some((b.name.to_string(), topics));
         }
-        known
-            .iter()
-            .find(|t| t.to_lowercase() == name.to_lowercase())
+        let wanted = plain(name);
+        let one = |name: &str| name.strip_suffix('s').unwrap_or(name).to_string();
+        let exact = known.iter().find(|t| plain(t) == wanted);
+        exact
+            .or_else(|| known.iter().find(|t| one(&plain(t)) == one(&wanted)))
             .map(|t| (t.to_lowercase(), vec![t.clone()]))
     };
 
@@ -320,9 +331,17 @@ mod tests {
     use super::*;
 
     fn known() -> Vec<String> {
-        ["Muziek", "Muziekinstrument", "Chemisch element", "Economie"]
-            .map(String::from)
-            .to_vec()
+        [
+            "Muziek",
+            "Muziekinstrument",
+            "Chemisch element",
+            "Economie",
+            "Animals",
+            "Animal sounds",
+            "Glass",
+        ]
+        .map(String::from)
+        .to_vec()
     }
 
     #[test]
@@ -356,6 +375,38 @@ mod tests {
         let finance = resolve(Lang::Dutch, "finance, economie", &known()).unwrap();
         let economie = finance.topics.iter().filter(|t| *t == "Economie").count();
         assert_eq!(economie, 1);
+    }
+
+    #[test]
+    fn capitals_spaces_and_a_last_s_do_not_matter() {
+        let topics = |input: &str| resolve(Lang::English, input, &known()).unwrap().topics;
+        for typed in [
+            "Animals",
+            "animals",
+            " ANIMALS ",
+            "animal",
+            "Animal",
+            "animal ",
+        ] {
+            assert_eq!(topics(typed), vec!["Animals".to_string()], "{typed:?}");
+        }
+        // A topic of two words, however far apart they were typed.
+        for typed in ["animal sounds", "Animal  Sounds", "\tanimal sound "] {
+            assert_eq!(
+                topics(typed),
+                vec!["Animal sounds".to_string()],
+                "{typed:?}"
+            );
+        }
+        // The topic that is spelled the same goes first, and a word that
+        // ends in s for another reason is still found.
+        assert_eq!(topics("glass"), vec!["Glass".to_string()]);
+        assert_eq!(topics("muziek"), vec!["Muziek".to_string()]);
+        // The categories of our own, too.
+        assert_eq!(topics(" Finance ")[0], "Finance");
+        assert!(is_built_in("finance\ttech") && is_built_in(" Names "));
+        // What is not there is still said so.
+        assert!(resolve(Lang::English, "anima", &known()).is_err());
     }
 
     #[test]

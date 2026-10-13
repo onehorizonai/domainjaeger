@@ -177,14 +177,16 @@ one. An available name that has no meaning yet gets one when you export.
 
 Both dictionaries file their words under topics. A category is a few of those
 topics under one name: `finance`, `tech`, `product`. Any topic is a category
-of its own: `cat music`, or `cat muziek` in Dutch. `cat list` shows every
-topic a language has.
+of its own: `cat music`, or `cat muziek` in Dutch. Capitals and spaces do not
+matter, and neither does a last s: `cat animal` is Animals. `cat list` shows
+every topic a language has.
 
 A hunt in a category turns the search around. It fetches the words of the
 topics and tries every extension on each word. Real spellings and near-perfect
-typos (sn.app) go first, best known words first. Sound-alikes and swapped
-letters come last. In a hunt without a category, every word is labelled with
-finance, tech and product as well, so the Excel file can be filtered on them.
+typos (sn.app) go first, best known words first. Sound-alikes, swapped letters
+and missing letters come last. In a hunt without a category, every word is
+labelled with finance, tech and product as well, so the Excel file can be
+filtered on them.
 
 First names are the category `names`: the given names the English Wiktionary
 lists per language, short forms like Mike included. There are about 9,800
@@ -203,6 +205,19 @@ the default. Typos are one small step away from the real spelling:
 | dropped double | especially → especia.ly | tobbe → to.be |
 | sound-alike (c/k, i/y, s/z) | today → tod.ai | display → displ.ai |
 | swapped letters | delicious → delicio.su | strooi → stro.io |
+| missing letter | numbers → nmbe.rs | lening → lni.ng |
+
+The missing letter is the first a, e, i, o or u the label can spare. It is
+never the first letter and never one of a double, and the label keeps a vowel
+to read it by. A whole word keeps its last letter as well. Nearly every word
+has such a name, and nearly all of them are free. So with all typos on, one
+word in ten on a page of the dictionary gets one. In a hunt inside a category,
+and for whole words, every word gets one, and they wait their turn behind the
+better names. With `typos missing`, every word gets one right away.
+
+Typos are all on unless you say otherwise. `typos off` (or `--typos off`,
+`--no-typos`) keeps to exact words. `typos missing` (or `--typos missing`)
+makes one kind only: `doubled`, `dropped`, `sound`, `swapped` or `missing`.
 
 **Whole word before the dot** (`w`, or `--whole`) is for extensions no word
 ends in, like `.nl` and `.com`. The name is the word itself (`lemon.nl`) or a
@@ -222,6 +237,7 @@ in mind:
 | doubled consonant between vowels | lening → lenning.nl | natural |
 | doubled last letter | knap → knapp.nl | clumsy |
 | last letters swapped | lening → lenign.nl | clumsy |
+| missing letter | lening → lning.nl | last of all |
 
 **A word of your own** (`--prefix`, `--suffix`) goes before or after every
 word: headspeed, speedbox. Both can be on at once. These are whole names, so

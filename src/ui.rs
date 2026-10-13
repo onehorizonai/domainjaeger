@@ -887,7 +887,11 @@ pub fn help(lang: Lang) {
                     "show rude words with a ⚠, or leave them out",
                 ),
                 ("w  whole [nl be] | off", &whole),
-                ("typos on | off", &typos),
+                ("typos all | off", &typos),
+                (
+                    "typos missing",
+                    "one kind, or doubled dropped sound swapped",
+                ),
                 (
                     "before head | off",
                     "add a word before each word: headspeed",

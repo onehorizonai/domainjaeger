@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 
 use crate::cache::Cache;
 use crate::check::{Checker, Method};
-use crate::hacks::Affix;
+use crate::hacks::{Affix, Typos};
 use crate::hunt::{Hunter, Settings};
 use crate::lang::Lang;
 use crate::net::fake;
@@ -141,7 +141,7 @@ pub fn settings() -> Settings {
         count: 10,
         max_checks: 150,
         min_label: 2,
-        typos: false,
+        typos: Typos::Off,
         category: None,
         lang: Lang::English,
         whole: false,

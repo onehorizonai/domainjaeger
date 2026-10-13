@@ -19,8 +19,8 @@ use tokio::task::JoinSet;
 use crate::cache::{Cache, DOMAIN_TTL_SECS, Record};
 use crate::check::{Checker, Method, Status, Verdict};
 use crate::hacks::{
-    Affix, Candidate, Variant, candidate, candidates_for_word, combination, variants,
-    whole_candidates,
+    Affix, Candidate, Kind, Typos, Variant, candidate, candidates_for_word, combination, variants,
+    whole_candidates, with_missing,
 };
 use crate::lang::Lang;
 use crate::tld::spotlight;
@@ -44,6 +44,10 @@ const REGISTRY_PATIENCE: Duration = Duration::from_secs(3);
 /// A hunt for whole words starts with the words every Dutch person knows and
 /// works its way down to the ones this percentage knows.
 const LEAST_KNOWN: u8 = 80;
+/// Among all typos, the share of the words that also get a name with a
+/// letter missing. Nearly every word has such a name and nearly all of them
+/// are free, so with one for every word a round would be little else.
+const MISSING_ONE_IN: usize = 10;
 
 #[derive(Debug, Clone)]
 pub struct Settings {
@@ -52,7 +56,8 @@ pub struct Settings {
     /// Give up on a round after this many lookups.
     pub max_checks: usize,
     pub min_label: usize,
-    pub typos: bool,
+    /// The small typos to make names with: all, none or one kind.
+    pub typos: Typos,
     /// Only hunt among the words of this category.
     pub category: Option<Category>,
     /// The language the words come from.
@@ -71,6 +76,16 @@ impl Settings {
     /// Is this word one to make names of?
     fn welcomes(&self, word: &Word) -> bool {
         self.rude || word.tone.is_empty()
+    }
+
+    /// Does the word in this place on a page of the dictionary also get a
+    /// name with a letter missing (nmbe.rs)? Every word when that is the
+    /// typo that was picked, one in `MISSING_ONE_IN` among all typos.
+    fn spares_a_letter(&self, place: usize) -> bool {
+        match self.typos {
+            Typos::All => place.is_multiple_of(MISSING_ONE_IN),
+            typos => typos.allows(Kind::Missing),
+        }
     }
 
     /// The whole names a word makes under a TLD: the word and its typos, or
@@ -869,10 +884,13 @@ impl Hunter {
                 .words
                 .iter()
                 .filter(|word| settings.welcomes(word))
-                .flat_map(|word| {
+                .enumerate()
+                .flat_map(|(place, word)| {
+                    let missing = settings.spares_a_letter(place);
                     std::iter::once(&stream.variant)
                         .chain(&stream.riders)
                         .filter_map(move |variant| candidate(word, tld, variant, min_label))
+                        .flat_map(move |name| with_missing(name, missing, min_label))
                 })
                 .collect();
             stream.after = page.next;
@@ -967,6 +985,9 @@ fn cross(
     settings: &Settings,
 ) -> Vec<(usize, Candidate)> {
     let min_label = settings.min_label;
+    // A name with a letter missing comes last (see `Kind::rank`), so here
+    // every word can have one.
+    let missing = settings.typos.allows(Kind::Missing);
     let words = words.iter().filter(|word| settings.welcomes(word));
     if settings.whole {
         return words
@@ -982,10 +1003,15 @@ fn cross(
     }
     words
         .flat_map(|word| {
-            endings.iter().filter_map(move |(lane, variant)| {
-                let name = candidate(word, &lanes[*lane].tld, variant, min_label)?;
-                Some((*lane, name))
-            })
+            endings
+                .iter()
+                .filter_map(move |(lane, variant)| {
+                    let name = candidate(word, &lanes[*lane].tld, variant, min_label)?;
+                    Some((*lane, name))
+                })
+                .flat_map(move |(lane, name)| {
+                    with_missing(name, missing, min_label).map(move |name| (lane, name))
+                })
         })
         .collect()
 }
@@ -999,7 +1025,7 @@ fn best_first(a: &Candidate, b: &Candidate) -> Ordering {
 }
 
 /// The dictionary ranges to page through for a TLD.
-fn streams_for(tld: &str, typos: bool) -> Vec<Stream> {
+fn streams_for(tld: &str, typos: Typos) -> Vec<Stream> {
     let mut streams: Vec<Stream> = Vec::new();
     for variant in variants(tld, typos) {
         // A longer ending rides along with the stream whose range contains it.
@@ -1210,7 +1236,7 @@ mod tests {
         assert!(exact.hits.is_empty() && exact.exhausted);
 
         let with_typos = Settings {
-            typos: true,
+            typos: Typos::All,
             ..testing::settings()
         };
         let (found, _) = round(&mut world.hunter(&["app"], with_typos)).await;
@@ -1221,6 +1247,47 @@ mod tests {
             ("snap", "snapp")
         );
         assert_ne!(record.kind, "exact");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_letter_goes_missing_for_every_word_or_for_one_in_ten() {
+        const WORDS: [&str; 12] = [
+            "numbers", "players", "drivers", "makers", "readers", "writers", "singers", "dancers",
+            "bakers", "voters", "riders", "lovers",
+        ];
+        // The names with a letter missing that a hunt finds, and all it finds.
+        let hunt = |typos: Typos| async move {
+            let world = World::new();
+            world.registry("rs");
+            world.finds("+rs$/", &WORDS);
+            world.otherwise_quiet();
+            let settings = Settings {
+                typos,
+                count: 50,
+                ..testing::settings()
+            };
+            let (found, _) = round(&mut world.hunter(&["rs"], settings)).await;
+            let missing: Vec<String> = found
+                .hits
+                .iter()
+                .filter(|r| r.kind == Kind::Missing.as_str())
+                .map(|r| r.domain.clone())
+                .collect();
+            (missing, found.hits.len())
+        };
+
+        // Picked on its own, every word has one, next to its real name.
+        let (missing, all) = hunt(Typos::Only(Kind::Missing)).await;
+        assert_eq!((missing.len(), all), (12, 24));
+        assert_eq!(missing[0], "nmbe.rs");
+        // Among all typos it is the first word of every ten on a page, so
+        // that real words stay the larger part of a round.
+        let (missing, all) = hunt(Typos::All).await;
+        assert_eq!(missing, vec!["nmbe.rs", "rde.rs"]);
+        assert_eq!(all, 14);
+        // And not at all without typos, or with another kind.
+        assert_eq!(hunt(Typos::Off).await, (Vec::new(), 12));
+        assert_eq!(hunt(Typos::Only(Kind::Swapped)).await, (Vec::new(), 12));
     }
 
     #[tokio::test(start_paused = true)]
@@ -1411,7 +1478,7 @@ mod tests {
     }
 
     fn endings(tld: &str) -> Vec<(String, Vec<String>)> {
-        streams_for(tld, true)
+        streams_for(tld, Typos::All)
             .into_iter()
             .map(|s| {
                 (
@@ -1450,7 +1517,11 @@ mod tests {
         let endings: Vec<(usize, Variant)> = lanes
             .iter()
             .enumerate()
-            .flat_map(|(i, l)| variants(&l.tld, true).into_iter().map(move |v| (i, v)))
+            .flat_map(|(i, l)| {
+                variants(&l.tld, Typos::All)
+                    .into_iter()
+                    .map(move |v| (i, v))
+            })
             .collect();
         let word = |text: &str, prevalence| Word {
             text: text.into(),
@@ -1470,7 +1541,7 @@ mod tests {
             count: 10,
             max_checks: 150,
             min_label: 2,
-            typos: true,
+            typos: Typos::All,
             category: None,
             lang: Lang::Dutch,
             whole: false,
@@ -1484,7 +1555,8 @@ mod tests {
             .map(|(lane, name)| (*lane, name.domain.as_str()))
             .collect();
         // Real spellings first (best known word first, unknown prevalence
-        // last), then the doubled letter, then the swapped ones.
+        // last), then the doubled letter, then the swapped ones and the one
+        // with a letter missing.
         assert_eq!(
             found,
             vec![
@@ -1493,6 +1565,7 @@ mod tests {
                 (1, "win.st"),
                 (2, "sch.app"),
                 (1, "fie.st"),
+                (0, "lni.ng"),
             ]
         );
         assert_eq!(names[0].1.topics, "Financieel");

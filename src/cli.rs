@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
+use crate::hacks::Typos;
 use crate::lang::Lang;
 
 #[derive(Parser)]
@@ -43,8 +44,14 @@ pub struct Cli {
           value_parser = clap::value_parser!(u8).range(1..=5))]
     pub syllables: Vec<u8>,
 
-    /// Only correctly spelled names (cook.ing), no small spelling mistakes
-    /// (sn.app)
+    /// The small spelling mistakes to make names with: all, off, or one
+    /// kind. The kinds are doubled (sn.app), dropped (especia.ly), sound
+    /// (tod.ai), swapped (delicio.su) and missing (nmbe.rs)
+    #[arg(long, default_value = "all", global = true, value_parser = parse_typos,
+          conflicts_with = "no_typos")]
+    pub typos: Typos,
+
+    /// Only correctly spelled names (cook.ing): the same as --typos off
     #[arg(long, global = true)]
     pub no_typos: bool,
 
@@ -119,6 +126,10 @@ fn parse_lang(text: &str) -> Result<Lang, String> {
     Lang::parse(text).ok_or_else(|| format!("pick one of {}", Lang::choices()))
 }
 
+fn parse_typos(text: &str) -> Result<Typos, String> {
+    Typos::parse(text).ok_or_else(|| format!("pick one of {}", Typos::CHOICES))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -134,6 +145,7 @@ mod tests {
         assert_eq!(cli.lang, Lang::English);
         assert_eq!((cli.count, cli.syllables.as_slice()), (10, &[1, 2, 3][..]));
         assert!(!cli.whole && !cli.no_typos && !cli.no_rude && !cli.verbose);
+        assert_eq!(cli.typos, Typos::All);
         assert!(cli.tlds.is_none() && cli.category.is_none() && cli.db.is_none());
     }
 
@@ -177,6 +189,21 @@ mod tests {
         // A language nobody knows is refused, with the ones there are.
         let problem = parse(&["--lang", "xx"]).err().unwrap().to_string();
         assert!(problem.contains("en (English)"), "{problem}");
+
+        // Typos are all of them, none, or one kind.
+        use crate::hacks::Kind;
+        let typos = |arguments: &[&str]| parse(arguments).unwrap().typos;
+        assert_eq!(typos(&["--typos", "off"]), Typos::Off);
+        assert_eq!(typos(&["--typos", "missing"]), Typos::Only(Kind::Missing));
+        assert_eq!(
+            typos(&["check", "numbers", "--typos", "Swapped"]),
+            Typos::Only(Kind::Swapped)
+        );
+        let problem = parse(&["--typos", "maybe"]).err().unwrap().to_string();
+        assert!(problem.contains("swapped or missing"), "{problem}");
+        // The old way to say none still works, but not next to the new one.
+        assert!(parse(&["--no-typos"]).unwrap().no_typos);
+        assert!(parse(&["--no-typos", "--typos", "all"]).is_err());
     }
 
     #[test]
