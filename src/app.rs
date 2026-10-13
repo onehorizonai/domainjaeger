@@ -18,7 +18,7 @@ use console::style;
 use crate::cache::{Cache, Record};
 use crate::check::{Checker, Status};
 use crate::cli::Command;
-use crate::hacks::{self, Affix};
+use crate::hacks::{self, Affix, Kind, Typos};
 use crate::hunt::{self, Event, Hunter, Looked, Round};
 use crate::lang::Lang;
 use crate::tld::{self, Catalog};
@@ -300,15 +300,20 @@ impl App {
         self.changed("Extensions")
     }
 
-    /// Small typos on or off.
+    /// Small typos: all of them, none, or one kind. Without a word it is
+    /// all or none, whichever it is not now.
     fn typos(&mut self, argument: &str) -> Result<()> {
-        let on = match argument {
-            "" => !self.hunter.settings.typos,
-            "on" | "yes" => true,
-            "off" | "no" => false,
-            _ => bail!("`typos on` or `typos off`"),
+        let typos = match argument {
+            "" if self.hunter.settings.typos.is_off() => Typos::All,
+            "" => Typos::Off,
+            wanted => match Typos::parse(wanted) {
+                Some(typos) => typos,
+                None => bail!(
+                    "`typos all`, `typos off`, or one kind: doubled, dropped, sound, swapped, missing"
+                ),
+            },
         };
-        self.hunter.settings.typos = on;
+        self.hunter.settings.typos = typos;
         let (tlds, focused) = (self.hunter.tlds(), self.focused);
         self.rebuild(tlds, focused);
         self.changed("Typos")
@@ -649,9 +654,20 @@ mod tests {
         let settings = |app: &App| app.hunter.settings.clone();
 
         app.execute("typos on").await;
-        assert!(settings(&app).typos);
+        assert_eq!(settings(&app).typos, Typos::All);
         app.execute("typos").await;
-        assert!(!settings(&app).typos);
+        assert_eq!(settings(&app).typos, Typos::Off);
+        // One kind of typo, however it is typed. From there the bare word
+        // turns them off, and from off it turns all of them on.
+        app.execute("typos Missing ").await;
+        assert_eq!(settings(&app).typos, Typos::Only(Kind::Missing));
+        app.execute("typos swapped").await;
+        assert_eq!(settings(&app).typos, Typos::Only(Kind::Swapped));
+        app.execute("typos").await;
+        assert_eq!(settings(&app).typos, Typos::Off);
+        app.execute("typos").await;
+        assert_eq!(settings(&app).typos, Typos::All);
+        app.execute("typos off").await;
         app.execute("rude off").await;
         assert!(!settings(&app).rude);
         // A category by its name, however it is typed, and off the same way.
@@ -682,7 +698,7 @@ mod tests {
         let after = settings(&app);
         assert_eq!(
             (after.count, after.typos, after.rude, after.lang),
-            (20, false, false, Lang::Spanish)
+            (20, Typos::Off, false, Lang::Spanish)
         );
         // Nothing here needed the dictionary or a registry.
         assert!(world.web.asked().is_empty());

@@ -43,7 +43,7 @@ use app::{category_of, fixed_part, meaning_backlog, stats_of, to_excel};
 use cache::Cache;
 use check::Checker;
 use cli::{Cli, Command};
-use hacks::Affix;
+use hacks::{Affix, Typos};
 use hunt::{Hunter, Settings};
 use net::{Clock, Online, Port43, SystemClock, Web};
 use tld::Catalog;
@@ -130,7 +130,7 @@ async fn run(cli: Cli) -> Result<()> {
         count: cli.count.max(1),
         max_checks: cli.max_checks.max(1),
         min_label: cli.min_label.max(1),
-        typos: !cli.no_typos,
+        typos: if cli.no_typos { Typos::Off } else { cli.typos },
         category,
         lang: cli.lang,
         whole,

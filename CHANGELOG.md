@@ -6,6 +6,14 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- A new kind of typo, the missing letter: numbers makes nmbe.rs, and
+  nmbers.nl as a whole word.
+- Typos are a choice: all of them, none, or one kind. Pick it on the home
+  screen, type `typos missing`, or start with `--typos missing`. The kinds
+  are doubled, dropped, sound, swapped and missing. `--no-typos` still works.
+
 ### Changed
 
 - A category is found however it is typed. Capitals and extra spaces do not

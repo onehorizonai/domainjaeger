@@ -232,25 +232,68 @@ impl App {
         } else {
             examples.typo
         };
-        let typos = match s.typos {
-            true if !s.affix.is_empty() => "On · but not with an added word".to_string(),
-            true => format!("On · small misspellings too: {misspelled}"),
-            false => "Off · only correctly spelled names".to_string(),
+        // A kind of typo by its name, and what it makes of a word in the
+        // name style of the hunt.
+        let named = |kind: Kind| {
+            let mut letters = kind.as_str().chars();
+            let first = letters.next().map(|c| c.to_ascii_uppercase());
+            first.into_iter().chain(letters).collect::<String>()
         };
+        let shown = |kind: Kind| {
+            let (word, dotted, reads) = kind.example();
+            format!("{word} → {}", if s.whole { reads } else { dotted })
+        };
+        let does = |kind: Kind| match kind {
+            Kind::Doubled => "a letter twice",
+            Kind::Undoubled => "one of a double gone",
+            Kind::SoundAlike => "a letter that sounds the same",
+            Kind::Swapped => "two letters switched",
+            Kind::Missing => "one letter left out",
+            Kind::Exact => "the word as it is",
+        };
+        let which = match s.typos {
+            Typos::All => "All".to_string(),
+            Typos::Off => "Off".to_string(),
+            Typos::Only(kind) => named(kind),
+        };
+        let typos = match s.typos {
+            Typos::Off => "Off · only correctly spelled names".to_string(),
+            _ if !s.affix.is_empty() => format!("{which} · but not with an added word"),
+            Typos::All => format!("All · small misspellings too: {misspelled}"),
+            Typos::Only(kind) => format!("{which} · {}", shown(kind)),
+        };
+        let kinds = Kind::TYPOS.map(|kind| {
+            run(
+                &named(kind),
+                &format!("{}: {}", does(kind), shown(kind)),
+                &format!("typos {}", kind.word()),
+            )
+        });
         let typos = ui::Setting {
-            choices: vec![
+            choices: [
                 run(
-                    "On",
-                    &format!("small misspellings too, like {misspelled}"),
-                    "typos on",
+                    "All",
+                    &format!("every kind below, like {misspelled}"),
+                    "typos all",
                 ),
                 run("Off", "only correctly spelled names", "typos off"),
-            ],
-            current: Some(usize::from(!s.typos)),
+            ]
+            .into_iter()
+            .chain(kinds)
+            .collect(),
+            current: Some(match s.typos {
+                Typos::All => 0,
+                Typos::Off => 1,
+                Typos::Only(kind) => 2 + Kind::TYPOS.iter().position(|k| *k == kind).unwrap_or(0),
+            }),
             ..setting(
                 "Typos",
                 typos,
-                if s.typos { "typos off" } else { "typos on" },
+                if s.typos.is_off() {
+                    "typos all"
+                } else {
+                    "typos off"
+                },
             )
         };
 
@@ -608,7 +651,7 @@ mod tests {
         );
         assert_eq!(value("Category"), "Only finance");
         assert!(value("Rude words").starts_with("Left out"));
-        assert!(value("Typos").starts_with("On"));
+        assert!(value("Typos").starts_with("All"), "{}", value("Typos"));
         assert_eq!(value("Extensions"), ".ing");
         assert!(value("Per round").starts_with("Finds 20 available names"));
         assert!(value("Speed").starts_with("Fast"));
