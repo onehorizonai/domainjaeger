@@ -177,8 +177,9 @@ one. An available name that has no meaning yet gets one when you export.
 
 Both dictionaries file their words under topics. A category is a few of those
 topics under one name: `finance`, `tech`, `product`. Any topic is a category
-of its own: `cat music`, or `cat muziek` in Dutch. `cat list` shows every
-topic a language has.
+of its own: `cat music`, or `cat muziek` in Dutch. Capitals and spaces do not
+matter, and neither does a last s: `cat animal` is Animals. `cat list` shows
+every topic a language has.
 
 A hunt in a category turns the search around. It fetches the words of the
 topics and tries every extension on each word. Real spellings and near-perfect

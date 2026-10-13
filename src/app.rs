@@ -511,7 +511,8 @@ impl App {
     async fn category(&mut self, argument: &str) -> Result<()> {
         let lang = self.hunter.settings.lang;
         let asking = format!("asking {} for its topics", lang.dictionary());
-        let category = match argument {
+        // The words that are not a category, however they are typed.
+        let category = match argument.to_lowercase().as_str() {
             "" => {
                 ui::categories(self.hunter.settings.category.as_ref(), lang);
                 return Ok(());
@@ -525,10 +526,10 @@ impl App {
                 return Ok(());
             }
             "off" | "all" | "none" => None,
-            wanted => {
+            _ => {
                 let spinner = ui::Spinner::start();
                 spinner.status(&asking);
-                let category = category_of(&self.cache, &self.wiki, lang, wanted).await;
+                let category = category_of(&self.cache, &self.wiki, lang, argument).await;
                 spinner.stop();
                 Some(category?)
             }
@@ -653,6 +654,12 @@ mod tests {
         assert!(!settings(&app).typos);
         app.execute("rude off").await;
         assert!(!settings(&app).rude);
+        // A category by its name, however it is typed, and off the same way.
+        app.execute("cat  Finance ").await;
+        let category = settings(&app).category.map(|category| category.name);
+        assert_eq!(category.as_deref(), Some("finance"));
+        app.execute("CAT Off").await;
+        assert!(settings(&app).category.is_none());
         app.execute("count 20").await;
         assert_eq!(settings(&app).count, 20);
         app.execute("lang nl").await;

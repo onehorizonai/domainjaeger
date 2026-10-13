@@ -199,11 +199,12 @@ and Dutch ones from [WikiWoordenboek](https://nl.wiktionary.org). There is no
 word list in this repository. Every available name comes with what its word
 means, in English for all four languages.
 
-**Category.** Four are built in, each with a sign of its own: `$` finance,
-`>` tech, `#` product and `@` names. Any topic the dictionary has works as
-well: `cat music`. `cat list` shows them all, and `cat off` goes back to the
-whole dictionary. `cat names` hunts among first names: luc.as, or mike.ai with
-whole words on.
+**Category.** Four are built in, each with a sign of its own: `$` finance, `>`
+tech, `#` product and `@` names. Any topic the dictionary has works as well:
+`cat music`. Capitals do not matter, and neither does a last s: `cat animal`
+finds Animals. `cat list` shows them all, and `cat off` goes back to the whole
+dictionary. `cat names` hunts among first names: luc.as, or mike.ai with whole
+words on.
 
 **Name style.** The whole word before the dot is for extensions no word ends
 in, like `.nl` and `.com`: lemon.nl, or lemmon.nl with a small typo. It hunts

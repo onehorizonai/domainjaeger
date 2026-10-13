@@ -4,6 +4,14 @@ All notable changes to domainjaeger are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- A category is found however it is typed. Capitals and extra spaces do not
+  matter, and neither does a last s: `cat animal` finds Animals, and `cat Off`
+  turns the category off.
+
 ## [0.1.0] - 2026-10-12
 
 The first public version.
@@ -42,4 +50,5 @@ The first public version.
 - The registries of `.es`, `.as`, `.al` and `.na` do not answer public
   lookups, so names there are never reported as available.
 
+[Unreleased]: https://github.com/onehorizonai/domainjaeger/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/onehorizonai/domainjaeger/releases/tag/v0.1.0
