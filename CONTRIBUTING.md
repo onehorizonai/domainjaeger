@@ -165,7 +165,8 @@ Pillow and pyte.
   extensions whose registry does not answer".
 - Add or update tests for the behaviour you change.
 - Update `README.md` when what a user sees or types changes, and add a line
-  to `CHANGELOG.md` under Unreleased.
+  to `CHANGELOG.md` under Unreleased. Do the same for
+  [AGENTS.md](AGENTS.md), which holds the detail.
 - Say in the description how you tested, and on which system.
 
 Releases are described in [docs/RELEASING.md](docs/RELEASING.md).
