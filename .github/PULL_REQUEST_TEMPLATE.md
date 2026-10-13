@@ -15,6 +15,6 @@
 - [ ] `cargo test`
 - [ ] Tried in the app against a scratch cache (`--db`), not my own
 - [ ] Tests added or updated for the behaviour that changed
-- [ ] `README.md` and `CHANGELOG.md` updated, if what a user sees or types changed
+- [ ] `README.md`, `AGENTS.md` and `CHANGELOG.md` updated, if what a user sees or types changed
 
 System tested on: <!-- macOS (Apple Silicon), Linux, Windows -->
