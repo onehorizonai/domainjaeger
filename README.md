@@ -326,7 +326,8 @@ other extensions (`t ai io app`).
 
 **Names show a ▒.**
 The registry gave no clear answer, usually because it was asked too often.
-The name is tried again later. `r` verifies old and unclear names again.
+The name is tried again later. `r` verifies old and unclear names again. When
+no registry answered clearly, press enter to ask again.
 
 **The menu does not appear, or the arrow keys do nothing.**
 The window is too small, or the input is not a terminal. domainjaeger then

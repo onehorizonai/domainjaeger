@@ -113,7 +113,7 @@ impl App {
                 ui::show(&ui::setup(ADVANCED, &setup.advanced, ui::Mark::None, false));
                 for _ in 0..rounds {
                     let round = app.round().await?;
-                    if round.interrupted || round.exhausted {
+                    if round.interrupted || round.exhausted || round.stuck {
                         break;
                     }
                 }
@@ -819,6 +819,49 @@ mod tests {
         assert_eq!(fixed_part("").unwrap(), "");
         assert!(fixed_part("b0x").is_err());
         assert!(fixed_part(&"a".repeat(21)).is_err());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn an_extension_that_stops_answering_stays_in_the_setup() {
+        // The registry of .nl times out until it is left out of the round.
+        // A new word before every word used to leave no extension at all,
+        // and the hunt said the dictionary had no more words.
+        let world = World::new();
+        world.registry("nl");
+        world.finds("intitle:/^[a-z]{3,}$/", &["lemon", "melon", "mango"]);
+        world.web.down("rdap.test/nl/");
+        world.otherwise_quiet();
+        let mut app = app(&world, &["ing"]);
+        app.execute("before head").await;
+        app.execute("").await;
+        let unclear = world.cache.get("headlemon.nl").unwrap().unwrap();
+        assert_eq!(unclear.status, Status::Unknown);
+        assert_eq!(app.hunter.tlds(), vec!["nl"]);
+
+        // Once it answers again, another word before them finds names.
+        world.web.on("rdap.test/nl/", 404, "");
+        app.execute("before foot").await;
+        assert_eq!(app.hunter.tlds(), vec!["nl"]);
+        app.execute("").await;
+        let found = world.cache.get("footlemon.nl").unwrap().unwrap();
+        assert_eq!(found.status, Status::Available);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn an_extension_that_stops_answering_has_not_run_dry() {
+        // Plenty of words end in .ing, its registry just does not answer.
+        // That used to switch to whole words, and crash on the way.
+        let world = World::new();
+        world.registry("ing").pages("+ing$/", 20, "ing");
+        world.web.down("rdap.test/ing/");
+        world.otherwise_quiet();
+        let mut app = app(&world, &["ing"]);
+        let round = app.pass().await.unwrap().0;
+        assert!(round.stuck && round.retry && !round.exhausted);
+        assert!(!app.ran_dry(&round));
+        app.execute("").await;
+        assert!(!app.hunter.settings.whole);
+        assert_eq!(app.hunter.tlds(), vec!["ing"]);
     }
 
     #[tokio::test(start_paused = true)]

@@ -31,7 +31,7 @@ use crate::wiktionary::{SLICE_REQUESTS, Wiktionary, Word, WordList};
 const CONCURRENCY: usize = 8;
 /// Dictionary requests a TLD may spend per turn before the next one is up.
 const FETCHES_PER_TURN: usize = 2;
-/// Unclear answers in a row before a TLD is benched for the session.
+/// Unclear answers in a row before a TLD is left out of the hunt.
 const UNKNOWN_STREAK_LIMIT: u32 = 3;
 /// Other TLDs that get a turn between two rounds of the spotlight TLDs.
 const GUESTS_PER_CYCLE: usize = 6;
@@ -136,6 +136,11 @@ pub struct Round {
     pub interrupted: bool,
     /// The dictionary has nothing left for the selected TLDs.
     pub exhausted: bool,
+    /// Every TLD was left out along the way, so nothing could be checked.
+    pub stuck: bool,
+    /// Some of them were left out for unclear answers: the next round asks
+    /// their registries again.
+    pub retry: bool,
     /// Hit the lookup budget before finding enough names.
     pub capped: bool,
 }
@@ -163,6 +168,8 @@ struct Lane {
     /// Its registry lookup is being resolved in the background.
     warming: bool,
     benched: bool,
+    /// Benched for unclear answers, not for a registry that cannot be asked.
+    unclear: bool,
     unknown_streak: u32,
 }
 
@@ -262,6 +269,7 @@ impl Hunter {
                 prepared: false,
                 warming: false,
                 benched: false,
+                unclear: false,
                 unknown_streak: 0,
             })
             .collect();
@@ -341,17 +349,22 @@ impl Hunter {
         }
     }
 
+    /// The TLDs of the hunt, also the ones that were left out along the
+    /// way: a new hunt gives them another go.
     pub fn tlds(&self) -> Vec<String> {
-        self.lanes
-            .iter()
-            .filter(|l| !l.benched)
-            .map(|l| l.tld.clone())
-            .collect()
+        self.lanes.iter().map(|l| l.tld.clone()).collect()
     }
 
     /// Find `settings.count` available names (or run out of budget trying).
     pub async fn round(&mut self, on_event: &mut impl FnMut(Event)) -> Result<Round> {
         let mut round = Round::default();
+        // A registry that gave unclear answers may answer again by now. When
+        // no TLD is left, those get another go.
+        if self.lanes.iter().all(|l| l.benched) {
+            for lane in self.lanes.iter_mut().filter(|l| l.unclear) {
+                (lane.benched, lane.unclear, lane.unknown_streak) = (false, false, 0);
+            }
+        }
         while round.hits.len() < self.settings.count {
             let Some(mut record) = self.carry.pop_front() else {
                 break;
@@ -382,6 +395,7 @@ impl Hunter {
             if round.hits.len() >= self.settings.count
                 || round.interrupted
                 || round.exhausted
+                || round.stuck
                 || failure.is_some()
             {
                 break;
@@ -403,6 +417,10 @@ impl Hunter {
                 _ = &mut ctrl_c => round.interrupted = true,
                 next = self.next_candidate(on_event) => match next {
                     Err(e) => failure = Some(e),
+                    Ok(None) if self.lanes.iter().all(|l| l.benched) => {
+                        round.stuck = true;
+                        round.retry = self.lanes.iter().any(|l| l.unclear);
+                    }
                     Ok(None) => round.exhausted = true,
                     Ok(Some(candidate)) => {
                         launched += 1;
@@ -574,7 +592,7 @@ impl Hunter {
             if record.status == Status::Unknown {
                 lane.unknown_streak += 1;
                 if lane.unknown_streak >= UNKNOWN_STREAK_LIMIT && !lane.benched {
-                    lane.benched = true;
+                    (lane.benched, lane.unclear) = (true, true);
                     on_event(Event::Skipped {
                         tld: lane.tld.clone(),
                         reason: format!("left out for now, {}", record.detail),
@@ -695,6 +713,10 @@ impl Hunter {
         }
 
         loop {
+            // Without a TLD to check in, more words would be fetched for nothing.
+            if lanes.iter().all(|l| l.benched) {
+                return Ok(None);
+            }
             // Registry lookups are resolved in the background, a few TLDs at
             // a time, in the order their names are waiting.
             let mut resolving = 0;
@@ -1324,6 +1346,34 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
+    async fn a_registry_that_stops_answering_is_asked_again_next_round() {
+        let world = World::new();
+        world.registry("nl").pages("intitle:/^[a-z]{3,}$/", 20, "");
+        world.web.down("rdap.test/nl/");
+        world.otherwise_quiet();
+        let whole = Settings {
+            whole: true,
+            ..testing::settings()
+        };
+        let mut hunter = world.hunter(&["nl"], whole);
+        let (first, skipped) = round(&mut hunter).await;
+        assert!(first.stuck && first.retry && !first.exhausted);
+        assert!(first.hits.is_empty());
+        assert_eq!(
+            skipped,
+            vec![".nl left out for now, lookup failed: cannot connect"]
+        );
+        // With no extension left, the dictionary is not paged through for nothing.
+        assert!(world.web.count("intitle") < 20);
+
+        // It answers again.
+        world.web.on("rdap.test/nl/", 404, "");
+        let (second, _) = round(&mut hunter).await;
+        assert_eq!(second.hits.len(), 10);
+        assert!(!second.stuck);
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn hardly_any_word_ends_in_nl_so_that_hunt_is_over_at_once() {
         // What made a hunt in only .nl or only .com look broken: the
         // dictionary has nothing, and the round says so right away.
@@ -1511,6 +1561,7 @@ mod tests {
             prepared: false,
             warming: false,
             benched: false,
+            unclear: false,
             unknown_streak: 0,
         };
         let lanes = vec![lane("ng"), lane("st"), lane("app")];
