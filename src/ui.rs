@@ -698,6 +698,11 @@ pub fn remark(round: &Round, wanted: usize, category: Option<&Category>, lang: L
     let mut rng = rand::rng();
     if round.interrupted {
         "Stopped, everything checked so far is saved.".to_string()
+    } else if round.stuck && round.retry && found < wanted {
+        "No registry answered clearly just now. Press enter to ask again, or pick other extensions with `t`."
+            .to_string()
+    } else if round.stuck && found < wanted {
+        "None of these extensions can be checked. Pick others with `t`.".to_string()
     } else if let Some(category) = category.filter(|_| round.exhausted && found < wanted) {
         format!(
             "That was every {} word {} has for these extensions. Try another one with `cat`, or `cat off` for the whole dictionary.",
@@ -1243,6 +1248,21 @@ mod tests {
             topics: vec!["Banking".into()],
         };
         assert!(say(&dry, Some(&finance)).contains("every finance word Wiktionary has"));
+        // No extension left is not the end of the dictionary.
+        let timed_out = Round {
+            stuck: true,
+            retry: true,
+            ..round(2)
+        };
+        assert!(say(&timed_out, None).contains("Press enter to ask again"));
+        let unusable = Round {
+            stuck: true,
+            ..round(0)
+        };
+        assert_eq!(
+            say(&unusable, None),
+            "None of these extensions can be checked. Pick others with `t`."
+        );
         let crowded = Round {
             capped: true,
             ..round(1)
