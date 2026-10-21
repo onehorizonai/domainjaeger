@@ -119,7 +119,7 @@ impl App {
                     continue;
                 }
                 // Back on the home screen, on the line that led here.
-                (ui::Pressed::Back, Some(_)) => {
+                (ui::Pressed::Back | ui::Pressed::Erase, Some(_)) => {
                     self.advanced = None;
                     continue;
                 }
@@ -131,12 +131,29 @@ impl App {
                     self.selected = (self.selected + 1) % (rows.len() + 1);
                     continue;
                 }
-                (ui::Pressed::Back, None) => {
+                (ui::Pressed::Back | ui::Pressed::Erase, None) => {
                     self.selected = 0;
                     continue;
                 }
                 (ui::Pressed::Go, None) if self.selected == rows.len() => {
                     self.advanced = Some(0);
+                    continue;
+                }
+                (ui::Pressed::Go, Some(at)) if rows[at].several => {
+                    if self.several(&mut frame, editor, rows[at].label).await? {
+                        frame.clear();
+                        return Ok(Picked::Quit);
+                    }
+                    continue;
+                }
+                (ui::Pressed::Go, None) if self.selected > 0 && rows[self.selected - 1].several => {
+                    if self
+                        .several(&mut frame, editor, rows[self.selected - 1].label)
+                        .await?
+                    {
+                        frame.clear();
+                        return Ok(Picked::Quit);
+                    }
                     continue;
                 }
                 (ui::Pressed::Go, Some(at)) => match choose(&mut frame, editor, &rows[at]) {
@@ -173,6 +190,142 @@ impl App {
             }
         }
     }
+
+    /// The list of a setting where several choices can be on at once, like
+    /// the categories. Enter turns the one the arrow is on on or off, right
+    /// away, and the list stays open until escape. Returns whether to quit.
+    async fn several(
+        &mut self,
+        frame: &mut ui::Frame,
+        editor: &mut DefaultEditor,
+        label: &str,
+    ) -> Result<bool> {
+        let mut focused = None;
+        loop {
+            // What is on changes with every press, and so do the lines.
+            let setup = self.settings()?;
+            let lines = setup.main.iter().chain(&setup.advanced);
+            let Some(setting) = lines.into_iter().find(|line| line.label == label) else {
+                return Ok(false);
+            };
+            let last = setting.choices.len() - 1;
+            let at = focused.or(setting.current).unwrap_or(0).min(last);
+            frame.draw(&ui::choices(setting, at));
+            let choice = &setting.choices[at];
+            let command = match tokio::task::block_in_place(ui::press) {
+                ui::Pressed::Up => {
+                    focused = Some(at.checked_sub(1).unwrap_or(last));
+                    continue;
+                }
+                ui::Pressed::Down => {
+                    focused = Some((at + 1) % (last + 1));
+                    continue;
+                }
+                ui::Pressed::Back | ui::Pressed::Erase | ui::Pressed::Quit => return Ok(false),
+                ui::Pressed::Letter(_) | ui::Pressed::Other => continue,
+                ui::Pressed::Go => match &choice.does {
+                    ui::Does::Run(command) => command.clone(),
+                    ui::Does::Ask { question, command } => {
+                        match answer(frame, editor, setting.label, question, command) {
+                            Some(command) => command,
+                            None => continue,
+                        }
+                    }
+                    ui::Does::Browse(_) => {
+                        focused = Some(at);
+                        if self.subjects(frame, &choice.label).await? {
+                            return Ok(true);
+                        }
+                        continue;
+                    }
+                },
+            };
+            focused = Some(at);
+            frame.park();
+            let after = self.execute(&command).await;
+            frame.unpark();
+            if let After::Quit = after {
+                return Ok(true);
+            }
+        }
+    }
+
+    /// Every subject of the dictionary, as `cat list` shows them, to turn
+    /// on or off one by one: the ones that are on first, then the biggest.
+    /// Letters find one. Returns whether to quit.
+    async fn subjects(&mut self, frame: &mut ui::Frame, title: &str) -> Result<bool> {
+        let lang = self.hunter.settings.lang;
+        frame.park();
+        let spinner = self.asking_for_topics(true);
+        let all = topic_list(&self.cache, &self.wiki, lang).await;
+        if let Some(spinner) = spinner {
+            spinner.stop();
+        }
+        frame.unpark();
+        let mut all = match all {
+            Ok(all) => all,
+            Err(e) => {
+                ui::error(&format!("{e:#}"));
+                return Ok(false);
+            }
+        };
+        // `cat finance` is the built-in finance, never the topic Finance alone.
+        all.retain(|(topic, _)| !topics::is_built_in(topic));
+        // In the order they had when the list opened, so that nothing moves
+        // while things are turned on and off.
+        let picked = setup::picked(&self.hunter.settings);
+        all.sort_by_key(|(topic, _)| {
+            let at = picked.iter().position(|part| *part == topic.to_lowercase());
+            at.unwrap_or(usize::MAX)
+        });
+        let title = title.trim_end_matches('…');
+        let room = (ui::rows().saturating_sub(8)).clamp(3, 15);
+        let (mut find, mut focused) = (String::new(), 0);
+        loop {
+            let picked = setup::picked(&self.hunter.settings);
+            let picked: Vec<&str> = picked.iter().map(String::as_str).collect();
+            let choices: Vec<ui::Choice> = all
+                .iter()
+                .filter(|(topic, _)| topic.to_lowercase().contains(&find))
+                .map(|(topic, size)| setup::subject(&picked, topic, *size))
+                .collect();
+            focused = focused.min(choices.len().saturating_sub(1));
+            frame.draw(&ui::long_list(title, &choices, focused, &find, room));
+            let last = choices.len().saturating_sub(1);
+            let command = match tokio::task::block_in_place(ui::press) {
+                ui::Pressed::Up => {
+                    focused = focused.checked_sub(1).unwrap_or(last);
+                    continue;
+                }
+                ui::Pressed::Down => {
+                    focused = if focused >= last { 0 } else { focused + 1 };
+                    continue;
+                }
+                ui::Pressed::Letter(letter) if letter.is_alphabetic() => {
+                    find.extend(letter.to_lowercase());
+                    focused = 0;
+                    continue;
+                }
+                ui::Pressed::Erase if !find.is_empty() => {
+                    find.pop();
+                    focused = 0;
+                    continue;
+                }
+                ui::Pressed::Back | ui::Pressed::Erase | ui::Pressed::Quit => return Ok(false),
+                ui::Pressed::Letter(_) | ui::Pressed::Other => continue,
+                ui::Pressed::Go => match choices.get(focused).map(|choice| &choice.does) {
+                    Some(ui::Does::Run(command)) => command.clone(),
+                    _ => continue,
+                },
+            };
+            frame.park();
+            let after = self.execute(&command).await;
+            frame.unpark();
+            if let After::Quit = after {
+                return Ok(true);
+            }
+        }
+    }
 }
 
 /// What enter does on a line of the setup: a line without a choice in force
@@ -199,27 +352,40 @@ fn choose(
                 focused = focused.checked_sub(1).unwrap_or(setting.choices.len() - 1)
             }
             ui::Pressed::Down => focused = (focused + 1) % setting.choices.len(),
-            ui::Pressed::Back | ui::Pressed::Quit => return None,
+            ui::Pressed::Back | ui::Pressed::Erase | ui::Pressed::Quit => return None,
             ui::Pressed::Letter(_) | ui::Pressed::Other => {}
             ui::Pressed::Go => match &setting.choices[focused].does {
                 // What is in force already needs no doing.
                 ui::Does::Run(_) if setting.current == Some(focused) => return None,
                 ui::Does::Run(command) => return Some(command.clone()),
                 ui::Does::Ask { question, command } => {
-                    // The question takes the place of the list.
-                    frame.clear();
-                    println!("  {}", style(setting.label).bold());
-                    let prompt = ui::orange().bold().apply_to(format!("{question} ›"));
-                    let prompt = format!("  {prompt} ");
-                    let answer = tokio::task::block_in_place(|| editor.readline(&prompt));
-                    ui::wipe(2);
-                    if let Ok(answer) = answer
-                        && !answer.trim().is_empty()
-                    {
-                        return Some(format!("{command} {}", answer.trim()));
+                    if let Some(command) = answer(frame, editor, setting.label, question, command) {
+                        return Some(command);
                     }
                 }
+                // Only a list of several opens another list.
+                ui::Does::Browse(command) => return Some(command.clone()),
             },
         }
     }
+}
+
+/// The question of a choice, in the place of its list: `command <answer>`,
+/// or nothing when nothing was typed.
+fn answer(
+    frame: &mut ui::Frame,
+    editor: &mut DefaultEditor,
+    label: &str,
+    question: &str,
+    command: &str,
+) -> Option<String> {
+    frame.clear();
+    println!("  {}", style(label).bold());
+    let prompt = ui::orange().bold().apply_to(format!("{question} ›"));
+    let prompt = format!("  {prompt} ");
+    let answer = tokio::task::block_in_place(|| editor.readline(&prompt));
+    ui::wipe(2);
+    let answer = answer.ok()?;
+    let answer = answer.trim();
+    (!answer.is_empty()).then(|| format!("{command} {answer}"))
 }

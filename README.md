@@ -185,7 +185,7 @@ type, and a flag when you start.
 | --- | --- | --- | --- |
 | Language | English, Dutch, Latin or Spanish words | `lang nl` | `--lang nl` |
 | Word length | how many parts a word may have: cat 1, le-mon 2, ba-na-na 3 | `syl 1 2` | `--syllables 1,2` |
-| Category | all words, or only those about one subject | `cat finance` | `--category finance` |
+| Category | all words, or only those about one or more subjects | `cat finance tech` | `--category finance,tech` |
 | Rude words | vulgar, offensive, sexual and violent words: shown with a ⚠, or left out | `rude off` | `--no-rude` |
 | Name style | the dot inside the word (cook.ing), or the whole word before it (lemon.nl) | `w` | `--whole` |
 | Typos | every small misspelling (sn.app), one kind of them, or exact words only | `typos off`, `typos missing` | `--typos off` |
@@ -204,7 +204,9 @@ tech, `#` product and `@` names. Any topic the dictionary has works as well:
 `cat music`. Capitals do not matter, and neither does a last s: `cat animal`
 finds Animals. `cat list` shows them all, and `cat off` goes back to the whole
 dictionary. `cat names` hunts among first names: luc.as, or mike.ai with whole
-words on.
+words on. You can hunt in several at once. On the home screen, enter turns a
+category on or off, and esc goes back. "Another subject…" opens every subject
+`cat list` shows. Type a few letters to find one.
 
 **Name style.** The whole word before the dot is for extensions no word ends
 in, like `.nl` and `.com`: lemon.nl, or lemmon.nl with a small typo. It hunts

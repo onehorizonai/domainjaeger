@@ -34,6 +34,46 @@ impl Setup {
     }
 }
 
+/// The parts of the category that is on, as they are typed: "finance",
+/// "music". None for all words.
+pub(super) fn picked(settings: &hunt::Settings) -> Vec<String> {
+    let parts = settings.category.as_ref().map(|c| c.name.split('+'));
+    parts.into_iter().flatten().map(str::to_string).collect()
+}
+
+/// The command that turns `part` on, or off when it is on, and leaves the
+/// rest of what is `picked` as it is.
+pub(super) fn with_or_without(picked: &[&str], part: &str) -> String {
+    let mut parts = picked.to_vec();
+    match parts.iter().position(|p| *p == part) {
+        Some(at) => {
+            parts.remove(at);
+        }
+        None => parts.push(part),
+    }
+    match parts.is_empty() {
+        true => "cat off".to_string(),
+        // A comma keeps a topic of two words together.
+        false => format!("cat {}", parts.join(", ")),
+    }
+}
+
+/// A subject of the dictionary in the list of all of them, with the number
+/// of its words, and the built-in category it is part of.
+pub(super) fn subject(picked: &[&str], topic: &str, size: u64) -> ui::Choice {
+    let part = topic.to_lowercase();
+    let words = format!("{} words", ui::thousands(size));
+    ui::Choice {
+        label: topic.to_string(),
+        about: match topics::bundle_of(topic) {
+            Some(bundle) => format!("{words} · part of {}", bundle.name),
+            None => words,
+        },
+        does: ui::Does::Run(with_or_without(picked, &part)),
+        on: picked.contains(&part.as_str()),
+    }
+}
+
 impl App {
     /// How the hunt is set up, one line per thing you can change: first
     /// which words, then what names to make of them, then the search itself.
@@ -45,11 +85,16 @@ impl App {
             label: label.to_string(),
             about: about.to_string(),
             does: ui::Does::Run(command.to_string()),
+            on: false,
         };
-        let ask = |label: &str, about: &str, question, command| ui::Choice {
+        let ask = |label: &str, about: &str, question, command: &str| ui::Choice {
             label: label.to_string(),
             about: about.to_string(),
-            does: ui::Does::Ask { question, command },
+            does: ui::Does::Ask {
+                question,
+                command: command.to_string(),
+            },
+            on: false,
         };
         let setting = |label, value: String, command: &str| ui::Setting {
             label,
@@ -59,6 +104,7 @@ impl App {
             nudge: false,
             choices: Vec::new(),
             current: None,
+            several: false,
         };
         let examples = s.lang.examples();
 
@@ -130,18 +176,38 @@ impl App {
             ..setting("Word length", length, "syl 1 2")
         };
 
-        let mut subjects = vec![run("All words", "the whole dictionary", "cat off")];
-        subjects.extend(
-            topics::BUNDLES
-                .iter()
-                .map(|bundle| run(bundle.name, bundle.about, &format!("cat {}", bundle.name))),
-        );
-        subjects.push(ask(
-            "Another subject…",
-            &format!("any subject the dictionary has, like {}", examples.topic),
-            "Which subject? (`cat list` shows them all)",
-            "cat",
-        ));
+        // Several categories can be on at once: every line of the list turns
+        // one on or off, and runs what the whole selection is then.
+        let picked = picked(s);
+        let picked: Vec<&str> = picked.iter().map(String::as_str).collect();
+        let mut subjects = vec![ui::Choice {
+            on: picked.is_empty(),
+            ..run("All words", "the whole dictionary", "cat off")
+        }];
+        subjects.extend(topics::BUNDLES.iter().map(|bundle| ui::Choice {
+            on: picked.contains(&bundle.name),
+            ..run(
+                bundle.name,
+                bundle.about,
+                &with_or_without(&picked, bundle.name),
+            )
+        }));
+        // The other subjects are a list of their own: the one `cat list` shows.
+        let typed: Vec<&str> = picked
+            .iter()
+            .copied()
+            .filter(|part| !topics::is_built_in(part))
+            .collect();
+        let about = match typed.is_empty() {
+            true => format!("every subject the dictionary has, like {}", examples.topic),
+            false => format!("{} · or others", ui::listed(&typed.join("+"))),
+        };
+        subjects.push(ui::Choice {
+            label: "Another subject…".to_string(),
+            about,
+            does: ui::Does::Browse("cat list".to_string()),
+            on: false,
+        });
         let category = match &s.category {
             Some(category) => ui::Setting {
                 note: Some(
@@ -155,25 +221,22 @@ impl App {
                         .collect::<Vec<_>>()
                         .join(" · "),
                 ),
-                // One of ours, or else the subject that was typed.
-                current: topics::BUNDLES
-                    .iter()
-                    .position(|bundle| bundle.name == category.name)
-                    .map(|at| at + 1)
-                    .or(Some(subjects.len() - 1)),
-                ..setting("Category", format!("Only {}", category.name), "cat off")
-            },
-            None => ui::Setting {
-                current: Some(0),
                 ..setting(
                     "Category",
-                    "All words · or pick a subject".into(),
-                    "cat finance",
+                    format!("Only {}", ui::listed(&category.name)),
+                    "cat off",
                 )
             },
+            None => setting(
+                "Category",
+                "All words · or pick a subject".into(),
+                "cat finance",
+            ),
         };
         let category = ui::Setting {
+            current: subjects.iter().position(|choice| choice.on),
             choices: subjects,
+            several: true,
             ..category
         };
 
@@ -670,6 +733,91 @@ mod tests {
         assert_eq!(rude.choices[rude.current.unwrap()].label, "Leave them out");
     }
 
+    #[tokio::test(start_paused = true)]
+    async fn categories_are_turned_on_and_off_one_at_a_time() {
+        let world = World::new();
+        let listed = r#"{"batchcomplete":true,"query":{"allcategories":[
+            {"category":"en:Music","pages":4200},{"category":"en:Sports","pages":3100}]}}"#;
+        world.web.on("list=allcategories", 200, listed);
+        let mut app = app(&world);
+        let list = |app: &App| {
+            let setup = app.settings().unwrap();
+            setup
+                .main
+                .into_iter()
+                .find(|line| line.label == "Category")
+                .unwrap()
+        };
+        let on = |line: &ui::Setting| -> Vec<String> {
+            let on = line.choices.iter().filter(|choice| choice.on);
+            on.map(|choice| choice.label.clone()).collect()
+        };
+        let does = |line: &ui::Setting, label: &str| {
+            let choice = line.choices.iter().find(|choice| choice.label == label);
+            match &choice.unwrap().does {
+                ui::Does::Run(command) | ui::Does::Browse(command) => command.clone(),
+                ui::Does::Ask { command, .. } => command.clone(),
+            }
+        };
+
+        let all = list(&app);
+        assert!(all.several);
+        assert_eq!(on(&all), ["All words"]);
+        assert_eq!(all.choices[all.current.unwrap()].label, "All words");
+        assert_eq!(does(&all, "finance"), "cat finance");
+        // The other subjects are what `cat list` shows.
+        assert_eq!(does(&all, "Another subject…"), "cat list");
+
+        // Every line turns one on or off, the others stay as they are.
+        app.execute(&does(&all, "finance")).await;
+        app.execute(&does(&list(&app), "tech")).await;
+        let two = list(&app);
+        assert_eq!(on(&two), ["finance", "tech"]);
+        assert_eq!(two.value, "Only finance and tech");
+        assert_eq!(does(&two, "finance"), "cat tech");
+        assert_eq!(does(&two, "names"), "cat finance, tech, names");
+        assert_eq!(does(&two, "All words"), "cat off");
+        let topics = &app.hunter.settings.category.as_ref().unwrap().topics;
+        assert!(
+            topics.contains(&"Banking".to_string()) && topics.contains(&"Computing".to_string())
+        );
+        // None of that asked the dictionary anything.
+        assert!(world.web.asked().is_empty());
+
+        // A subject of the dictionary is turned on and off the same way, in
+        // the list of all of them.
+        let picked = ["finance", "tech"];
+        let music = subject(&picked, "Music", 4200);
+        assert!(!music.on && music.about == "4,200 words");
+        app.execute(&does_of(&music)).await;
+        let three = list(&app);
+        assert_eq!(three.value, "Only finance, tech and music");
+        let about = three.choices.iter().find(|c| c.label == "Another subject…");
+        assert_eq!(about.unwrap().about, "music · or others");
+        let picked = ["finance", "tech", "music"];
+        assert!(subject(&picked, "Music", 4200).on);
+        assert_eq!(
+            does_of(&subject(&picked, "Music", 4200)),
+            "cat finance, tech"
+        );
+        let sports = subject(&picked, "Sports", 3100);
+        assert_eq!(does_of(&sports), "cat finance, tech, music, sports");
+        app.execute(&does_of(&sports)).await;
+        assert_eq!(list(&app).value, "Only finance, tech, music and sports");
+        // A topic of a built-in category says so.
+        assert_eq!(
+            subject(&[], "Banking", 900).about,
+            "900 words · part of finance"
+        );
+    }
+
+    fn does_of(choice: &ui::Choice) -> String {
+        match &choice.does {
+            ui::Does::Run(command) => command.clone(),
+            _ => String::new(),
+        }
+    }
+
     #[test]
     fn every_choice_runs_a_command_the_shell_knows() {
         let world = World::new();
@@ -682,7 +830,7 @@ mod tests {
         for line in setup.main.iter().chain(&setup.advanced) {
             for choice in &line.choices {
                 let command = match &choice.does {
-                    ui::Does::Run(command) => command.as_str(),
+                    ui::Does::Run(command) | ui::Does::Browse(command) => command.as_str(),
                     ui::Does::Ask { command, .. } => command,
                 };
                 let word = command.split_whitespace().next().unwrap_or_default();

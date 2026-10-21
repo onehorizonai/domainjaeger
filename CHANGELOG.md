@@ -6,6 +6,22 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The categories on the home screen are a list where several can be on. Enter
+  turns a category on or off, and esc goes back.
+- "Another subject…" opens every subject `cat list` shows, to turn on and off
+  the same way. Typing letters finds one. Before, you had to type its name.
+- The home screen says "Only finance and tech" for two categories, not
+  "finance+tech".
+- Another language keeps the built-in categories of a mix and turns only the
+  typed subjects off.
+
+### Fixed
+
+- Changing the category no longer blinks the home screen, unless the
+  dictionary has to be asked for its subjects.
+
 ## [0.2.0] - 2026-10-13
 
 ### Added

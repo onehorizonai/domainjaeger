@@ -487,19 +487,25 @@ impl App {
         // The built-in categories exist in every language; a single topic
         // may be called something else for another one, or not be there.
         let category = self.hunter.settings.category.take();
-        self.hunter.settings.category = match category {
-            Some(category) if topics::is_built_in(&category.name.replace('+', " ")) => {
-                Some(topics::resolve(lang, &category.name, &[])?)
-            }
-            Some(category) => {
-                ui::info(&format!(
-                    "{} words have topics of their own, so \"{}\" is off. `cat list` shows them.",
-                    lang.name(),
-                    category.name
-                ));
-                None
-            }
-            None => None,
+        let parts: Vec<&str> = category
+            .as_ref()
+            .map(|category| category.name.split('+').collect())
+            .unwrap_or_default();
+        let (ours, theirs): (Vec<&str>, Vec<&str>) = parts
+            .into_iter()
+            .partition(|part| topics::is_built_in(part));
+        if !theirs.is_empty() {
+            let quoted: Vec<String> = theirs.iter().map(|part| format!("\"{part}\"")).collect();
+            ui::info(&format!(
+                "{} words have topics of their own, so {} {} off. `cat list` shows them.",
+                lang.name(),
+                ui::listed(&quoted.join("+")),
+                if theirs.len() == 1 { "is" } else { "are" }
+            ));
+        }
+        self.hunter.settings.category = match ours.is_empty() {
+            true => None,
+            false => Some(topics::resolve(lang, &ours.join("+"), &[])?),
         };
         self.hunter.settings.lang = lang;
         // The TLDs that are always in the mix differ per language.
@@ -515,7 +521,6 @@ impl App {
     /// Show the categories, or limit the hunt to one.
     async fn category(&mut self, argument: &str) -> Result<()> {
         let lang = self.hunter.settings.lang;
-        let asking = format!("asking {} for its topics", lang.dictionary());
         // The words that are not a category, however they are typed.
         let category = match argument.to_lowercase().as_str() {
             "" => {
@@ -523,26 +528,45 @@ impl App {
                 return Ok(());
             }
             "list" | "all?" | "?" => {
-                let spinner = ui::Spinner::start();
-                spinner.status(&asking);
+                let spinner = self.asking_for_topics(true);
                 let all = topic_list(&self.cache, &self.wiki, lang).await;
-                spinner.stop();
+                if let Some(spinner) = spinner {
+                    spinner.stop();
+                }
                 ui::topic_list(&all?, lang);
                 return Ok(());
             }
             "off" | "all" | "none" => None,
             _ => {
-                let spinner = ui::Spinner::start();
-                spinner.status(&asking);
+                let spinner = self.asking_for_topics(!topics::is_built_in(argument));
                 let category = category_of(&self.cache, &self.wiki, lang, argument).await;
-                spinner.stop();
+                if let Some(spinner) = spinner {
+                    spinner.stop();
+                }
                 Some(category?)
             }
         };
+        // The same again leaves the hunt as it is.
+        if category == self.hunter.settings.category {
+            return self.changed("Category");
+        }
         self.hunter.settings.category = category;
         let (tlds, focused) = (self.hunter.tlds(), self.focused);
         self.rebuild(tlds, focused);
         self.changed("Category")
+    }
+
+    /// A spinner while the dictionary is asked for its topics, when they
+    /// are `needed` and not known yet. Without one nothing is printed, so
+    /// the lists of the home screen stay where they are.
+    pub(super) fn asking_for_topics(&self, needed: bool) -> Option<ui::Spinner> {
+        let lang = self.hunter.settings.lang;
+        if !needed || known_topics(&self.cache, lang).is_some() {
+            return None;
+        }
+        let spinner = ui::Spinner::start();
+        spinner.status(&format!("asking {} for its topics", lang.dictionary()));
+        Some(spinner)
     }
 
     fn reset(&mut self) -> Result<()> {
@@ -592,19 +616,23 @@ pub(crate) async fn topic_list(
     wiki: &Wiktionary,
     lang: Lang,
 ) -> Result<Vec<(String, u64)>> {
-    let key = format!("{TOPICS_KEY}:{}", lang.code());
-    let cached = cache
-        .kv_get(&key, TOPICS_TTL_SECS)?
-        .and_then(|json| serde_json::from_str(&json).ok());
-    if let Some(all) = cached {
+    if let Some(all) = known_topics(cache, lang) {
         return Ok(all);
     }
+    let key = format!("{TOPICS_KEY}:{}", lang.code());
     let all = wiki
         .topics(lang)
         .await
         .with_context(|| format!("could not get the topics from {}", lang.dictionary()))?;
     cache.kv_put(&key, &serde_json::to_string(&all)?)?;
     Ok(all)
+}
+
+/// The topics of a language when the cache has them, biggest first.
+fn known_topics(cache: &Cache, lang: Lang) -> Option<Vec<(String, u64)>> {
+    let key = format!("{TOPICS_KEY}:{}", lang.code());
+    let json = cache.kv_get(&key, TOPICS_TTL_SECS).ok()??;
+    serde_json::from_str(&json).ok()
 }
 
 /// "finance", "tech+muziek", ...: the built-in categories need no lookup,
@@ -910,6 +938,12 @@ mod tests {
         // Another language has subjects of its own; ours exist in all.
         app.execute("lang nl").await;
         assert_eq!(category(&app), None);
+        app.execute("lang en").await;
+        app.execute("cat finance, music").await;
+        app.execute("lang nl").await;
+        let (name, topics) = category(&app).unwrap();
+        assert_eq!(name, "finance");
+        assert!(topics.contains(&"Financieel".to_string()));
         app.execute("cat names").await;
         app.execute("lang la").await;
         assert_eq!(category(&app).unwrap().0, "names");
