@@ -90,6 +90,29 @@ impl World {
         self
     }
 
+    /// The same, page after page: `slices` answers of three words each
+    /// (aa, ab, ac, ... with `ending` after them), the last one without a
+    /// next page.
+    pub fn pages(&self, part: &str, slices: u8, ending: &str) -> &Self {
+        for slice in 0..slices {
+            let found = (0..3u8).map(|i| {
+                let n = slice * 3 + i;
+                let word = format!(
+                    "{}{}{ending}",
+                    (b'a' + n / 26) as char,
+                    (b'a' + n % 26) as char
+                );
+                page(&word, u64::from(n) + 1, &[TWO])
+            });
+            let mut answer: Value = serde_json::from_str(&answer(found.collect())).unwrap();
+            if slice + 1 < slices {
+                answer["continue"] = json!({ "gsroffset": (slice + 1) * 3 });
+            }
+            self.web.on(part, 200, &answer.to_string());
+        }
+        self
+    }
+
     /// Everything that has no answer yet gets a plain one: the dictionaries
     /// know nothing more, and no name has name servers. Call it last, the
     /// first rule that fits answers.

@@ -277,7 +277,9 @@ Extensions that fail are skipped.
 Registries limit how often you may ask. Google's `.app` and `.dev` and SIDN's
 `.nl` allow about one lookup per second. The hunt paces itself and moves on to
 other extensions while one is busy. An unclear answer is shown as ▒ and tried
-again later.
+again later. After three in a row the extension is left out until you change a
+setting. When that leaves no extension at all, the round says so, and the next
+round asks its registry again.
 
 ### Speed
 

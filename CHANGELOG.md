@@ -6,6 +6,16 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- An extension whose registry stops answering for a while no longer ends the
+  hunt for good. The round used to say the dictionary had no more words, and
+  any new setting, like another word before every word, found nothing after
+  that. Now the round says the registry did not answer, the next round asks
+  it again, and a new setting puts the extension back in the hunt.
+- A hunt with the dot inside the word no longer switches to whole words, or
+  crashes, when its registry stops answering.
+
 ## [0.2.0] - 2026-10-13
 
 ### Added
