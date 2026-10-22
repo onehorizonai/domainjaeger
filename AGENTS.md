@@ -179,14 +179,20 @@ Both dictionaries file their words under topics. A category is a few of those
 topics under one name: `finance`, `tech`, `product`. Any topic is a category
 of its own: `cat music`, or `cat muziek` in Dutch. Capitals and spaces do not
 matter, and neither does a last s: `cat animal` is Animals. `cat list` shows
-every topic a language has.
+the 240 biggest topics of a language, A to Z.
+
+In English, Latin and Spanish a topic takes in the topics under it. Animals
+itself holds hardly an animal: they are under Mammals, Birds and Fish, and
+under the topics below those. The search goes five levels down and takes in
+256 topics at most. A topic with more under it gets a part of them. Dutch
+topics are read as they are.
 
 Several categories can be on at once: `cat finance, tech, music`. A comma
 keeps a topic of two words together. In the list on the home screen, enter
 turns a category on or off, right away, and the list stays open until esc.
-"Another subject…" opens every topic `cat list` shows, the ones that are on
-first and then the biggest. They are turned on and off the same way, and
-typing letters finds one. A topic with the name of a built-in category is not
+"Another subject…" opens the whole list of topics, the ones that are on
+first and then A to Z. They are turned on and off the same way, and typing
+letters finds one. A topic with the name of a built-in category is not
 in that list: `cat finance` is always the built-in one. Another language keeps
 the built-in categories on and turns the other topics off, because each
 dictionary has topics of its own.
@@ -312,6 +318,11 @@ once. `reset` starts the dictionary from the first page again. The finds stay.
 - **A category is a selection, not a complete list.** Volunteers label the
   words: `bank` has nine topics, `hypotheek` only "Juridisch". Most words have
   no topic at all, so in a hunt without a category most rows have none.
+- **The topics under a topic wander off.** Animals has Animal body parts and
+  Veterinary medicine under it, and Horses has Horse racing. So foot, book and
+  place are in Animals too, and as they are better known than fox or owl,
+  they come first. The number of words `cat list` shows for a topic counts
+  only the words filed under it directly.
 - **Latin and Spanish categories are thin.** Latin has 11 words under Finance
   and 8 under Computing, so `cat finance` or `cat tech` runs dry quickly
   there. Spanish does better (Computing 333, Clothing 244, Finance 101).

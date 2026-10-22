@@ -6,6 +6,19 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The subjects in "Another subject…" and `cat list` are in A to Z order, not
+  biggest first. The ones that are on still come first in the list.
+
+### Fixed
+
+- A topic of the English Wiktionary takes in the topics under it, in English,
+  Latin and Spanish. Animals itself holds hardly an animal: they are under
+  Mammals, Birds and Fish. A hunt in Animals found two English words of one
+  part, and now finds hundreds. The words of each topic are downloaded again
+  once.
+
 ## [0.3.0] - 2026-10-22
 
 ### Changed

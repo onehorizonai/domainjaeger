@@ -380,8 +380,11 @@ impl Wiktionary {
                     .await;
             }
             (Wiki::WikiWoordenboek, WordList::About(topic)) => members(topics::title(lang, topic)),
+            // With the topics under it: Animals files hardly an animal
+            // itself, they are under Mammals, Birds and Fish. The search goes
+            // five levels down, into 256 topics at most.
             (Wiki::Wiktionary, WordList::About(topic)) => {
-                words(format!(" incategory:\"{}:{topic}\"", lang.code()))
+                words(format!(" deepcat:\"{}:{topic}\"", lang.code()))
             }
             (Wiki::WikiWoordenboek, WordList::KnownBy(share)) => {
                 let mut source = members(format!("Categorie:Prevalentie Nederland {share} %"));
@@ -469,12 +472,17 @@ impl Wiktionary {
         let mut pages: HashMap<String, Found> = HashMap::new();
         let next = loop {
             let body = self.call(wiki, &params, &cont).await?;
-            // Half a search result would look like the end of the list.
+            // Half a search result would look like the end of the list, and
+            // so would none at all when the topics under a topic could not be
+            // looked up. Too many of them is fine: the search uses a part.
             let warning = body.pointer("/warnings/search/warnings");
-            if let Some(warning) = warning.and_then(Value::as_str)
-                && warning.contains("timed out")
-            {
-                bail!("the search of {} timed out", wiki.name());
+            if let Some(warning) = warning.and_then(Value::as_str) {
+                if warning.contains("timed out") {
+                    bail!("the search of {} timed out", wiki.name());
+                }
+                if warning.to_lowercase().contains("deep category search") {
+                    bail!("the search of {} failed: {warning}", wiki.name());
+                }
             }
             collect_pages(&body, &mut pages);
             let next_cont = continue_map(&body);
@@ -1201,7 +1209,7 @@ mod tests {
         let about = WordList::About("Banking".into());
         let found = wiki.words_of(Lang::English, &about, None).await.unwrap();
         assert_eq!(found.words[0].topics, vec!["Banking"]);
-        assert!(web.asked()[0].contains("incategory:\"en:Banking\""));
+        assert!(web.asked()[0].contains("deepcat:\"en:Banking\""));
         // Each dictionary has one way of telling which words are well known.
         assert!(
             wiki.words_of(Lang::Dutch, &WordList::Popular, None)
@@ -1296,6 +1304,38 @@ mod tests {
             .await
             .unwrap_err();
         assert!(problem.to_string().contains("timed out"));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_topic_takes_in_the_topics_under_it_or_says_it_could_not() {
+        let animals = WordList::About("Animals".into());
+        let warned = |warning: &str| {
+            let mut body: Value = serde_json::from_str(&answer(vec![page("fox", 1, &[TWO])]))
+                .expect("an answer is JSON");
+            body["warnings"] = serde_json::json!({ "search": { "warnings": warning } });
+            body.to_string()
+        };
+        // A topic with more under it than the search takes in gives a part.
+        let (wiki, web) = dictionary(&[2], None);
+        let many = "Deep category query returned too many categories. \
+                    Only a subset of categories has been applied.";
+        web.on("en.wiktionary.org", 200, &warned(many));
+        let found = wiki.words_of(Lang::English, &animals, None).await.unwrap();
+        assert_eq!(found.words[0].text, "fox");
+        assert!(web.asked()[0].contains("deepcat:\"en:Animals\""));
+
+        // When they could not be looked up, the list is not over.
+        let (wiki, web) = dictionary(&[2], None);
+        web.on(
+            "en.wiktionary.org",
+            200,
+            &warned("Deep category search SPARQL query failed"),
+        );
+        let problem = wiki
+            .words_of(Lang::English, &animals, None)
+            .await
+            .unwrap_err();
+        assert!(problem.to_string().contains("SPARQL query failed"));
     }
 
     #[tokio::test(start_paused = true)]

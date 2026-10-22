@@ -944,13 +944,15 @@ pub fn categories(active: Option<&Category>, lang: Lang) {
     println!();
 }
 
-/// The topics a dictionary files its words under, the biggest ones.
+/// The topics a dictionary files its words under: the biggest ones, A to Z
+/// down each column.
 pub fn topic_list(all: &[(String, u64)], lang: Lang) {
     const COLUMNS: usize = 3;
     const SHOWN: usize = 240;
-    let cells: Vec<String> = all
-        .iter()
-        .take(SHOWN)
+    let mut shown: Vec<&(String, u64)> = all.iter().take(SHOWN).collect();
+    shown.sort_by_cached_key(|(topic, _)| topic.to_lowercase());
+    let cells: Vec<String> = shown
+        .into_iter()
         .map(|(topic, size)| {
             let name = match topics::bundle_of(topic) {
                 // Part of a built-in category.
@@ -968,8 +970,13 @@ pub fn topic_list(all: &[(String, u64)], lang: Lang) {
             )
         })
         .collect();
-    for row in cells.chunks(COLUMNS) {
-        println!("  {}", row.join(""));
+    let rows = cells.len().div_ceil(COLUMNS);
+    for row in 0..rows {
+        let line: String = (0..COLUMNS)
+            .filter_map(|column| cells.get(column * rows + row))
+            .map(String::as_str)
+            .collect();
+        println!("  {line}");
     }
     println!();
     let more = match all.len().saturating_sub(SHOWN) {

@@ -307,9 +307,10 @@ impl Hunter {
                 .into_iter()
                 .map(|list| Feed {
                     // The numbers are for shelves that know the tone of their
-                    // words, and for the list of everyday words.
+                    // words, that take in the topics under a topic, and for
+                    // the list of everyday words.
                     key: match &list {
-                        WordList::About(topic) => format!("topic2:{scope}{syllables}:{topic}"),
+                        WordList::About(topic) => format!("topic3:{scope}{syllables}:{topic}"),
                         WordList::KnownBy(share) => format!("known2:{syllables}:{share}"),
                         WordList::Popular => format!("popular3:{scope}{syllables}"),
                         WordList::Names => {
@@ -1436,7 +1437,7 @@ mod tests {
         let banking = page("banking", 1, &[TWO, "Category:en:Banking"]);
         world
             .web
-            .on("incategory:\"en:Banking\"", 200, &answer(vec![banking]));
+            .on("deepcat:\"en:Banking\"", 200, &answer(vec![banking]));
         world.finds("+ing$/", &["cooking"]);
         world.otherwise_quiet();
         let finance = Settings {
