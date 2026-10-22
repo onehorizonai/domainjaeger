@@ -6,6 +6,8 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-22
+
 ### Changed
 
 - The categories on the home screen are a list where several can be on. Enter
@@ -19,6 +21,13 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- An extension whose registry stops answering for a while no longer ends the
+  hunt for good. The round used to say the dictionary had no more words, and
+  any new setting, like another word before every word, found nothing after
+  that. Now the round says the registry did not answer, the next round asks
+  it again, and a new setting puts the extension back in the hunt.
+- A hunt with the dot inside the word no longer switches to whole words, or
+  crashes, when its registry stops answering.
 - Changing the category no longer blinks the home screen, unless the
   dictionary has to be asked for its subjects.
 
@@ -77,6 +86,7 @@ The first public version.
 - The registries of `.es`, `.as`, `.al` and `.na` do not answer public
   lookups, so names there are never reported as available.
 
-[Unreleased]: https://github.com/onehorizonai/domainjaeger/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/onehorizonai/domainjaeger/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/onehorizonai/domainjaeger/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/onehorizonai/domainjaeger/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/onehorizonai/domainjaeger/releases/tag/v0.1.0
