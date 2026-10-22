@@ -251,7 +251,7 @@ impl App {
     }
 
     /// Every subject of the dictionary, as `cat list` shows them, to turn
-    /// on or off one by one: the ones that are on first, then the biggest.
+    /// on or off one by one: the ones that are on first, then A to Z.
     /// Letters find one. Returns whether to quit.
     async fn subjects(&mut self, frame: &mut ui::Frame, title: &str) -> Result<bool> {
         let lang = self.hunter.settings.lang;
@@ -273,11 +273,7 @@ impl App {
         all.retain(|(topic, _)| !topics::is_built_in(topic));
         // In the order they had when the list opened, so that nothing moves
         // while things are turned on and off.
-        let picked = setup::picked(&self.hunter.settings);
-        all.sort_by_key(|(topic, _)| {
-            let at = picked.iter().position(|part| *part == topic.to_lowercase());
-            at.unwrap_or(usize::MAX)
-        });
+        setup::in_order(&mut all, &setup::picked(&self.hunter.settings));
         let title = title.trim_end_matches('…');
         let room = (ui::rows().saturating_sub(8)).clamp(3, 15);
         let (mut find, mut focused) = (String::new(), 0);

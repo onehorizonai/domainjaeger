@@ -6,6 +6,11 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The subjects in "Another subject…" and `cat list` are in A to Z order, not
+  biggest first. The ones that are on still come first in the list.
+
 ### Fixed
 
 - A topic of the English Wiktionary takes in the topics under it, in English,

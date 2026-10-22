@@ -206,7 +206,7 @@ finds Animals. `cat list` shows them all, and `cat off` goes back to the whole
 dictionary. `cat names` hunts among first names: luc.as, or mike.ai with whole
 words on. You can hunt in several at once. On the home screen, enter turns a
 category on or off, and esc goes back. "Another subject…" opens every subject
-`cat list` shows. Type a few letters to find one.
+`cat list` shows, A to Z. Type a few letters to find one.
 
 **Name style.** The whole word before the dot is for extensions no word ends
 in, like `.nl` and `.com`: lemon.nl, or lemmon.nl with a small typo. It hunts

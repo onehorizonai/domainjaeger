@@ -58,6 +58,16 @@ pub(super) fn with_or_without(picked: &[&str], part: &str) -> String {
     }
 }
 
+/// The subjects of the dictionary as the list of all of them has them: the
+/// ones that are `picked` first, in the order they were picked, then A to Z.
+pub(super) fn in_order(all: &mut [(String, u64)], picked: &[String]) {
+    all.sort_by_cached_key(|(topic, _)| {
+        let name = topic.to_lowercase();
+        let at = picked.iter().position(|part| *part == name);
+        (at.unwrap_or(usize::MAX), name)
+    });
+}
+
 /// A subject of the dictionary in the list of all of them, with the number
 /// of its words, and the built-in category it is part of.
 pub(super) fn subject(picked: &[&str], topic: &str, size: u64) -> ui::Choice {
@@ -808,6 +818,34 @@ mod tests {
         assert_eq!(
             subject(&[], "Banking", 900).about,
             "900 words · part of finance"
+        );
+    }
+
+    #[test]
+    fn the_subjects_that_are_on_come_first_then_a_to_z() {
+        let mut all: Vec<(String, u64)> = [
+            ("People", 11461),
+            ("Medicine", 10216),
+            ("Sports", 3100),
+            ("animal sounds", 120),
+            ("Animals", 131),
+            ("Music", 4200),
+        ]
+        .into_iter()
+        .map(|(topic, size)| (topic.to_string(), size))
+        .collect();
+        in_order(&mut all, &["sports".into(), "animals".into()]);
+        let topics: Vec<&str> = all.iter().map(|(topic, _)| topic.as_str()).collect();
+        assert_eq!(
+            topics,
+            vec![
+                "Sports",
+                "Animals",
+                "animal sounds",
+                "Medicine",
+                "Music",
+                "People"
+            ]
         );
     }
 

@@ -179,7 +179,7 @@ Both dictionaries file their words under topics. A category is a few of those
 topics under one name: `finance`, `tech`, `product`. Any topic is a category
 of its own: `cat music`, or `cat muziek` in Dutch. Capitals and spaces do not
 matter, and neither does a last s: `cat animal` is Animals. `cat list` shows
-every topic a language has.
+the 240 biggest topics of a language, A to Z.
 
 In English, Latin and Spanish a topic takes in the topics under it. Animals
 itself holds hardly an animal: they are under Mammals, Birds and Fish, and
@@ -190,9 +190,9 @@ topics are read as they are.
 Several categories can be on at once: `cat finance, tech, music`. A comma
 keeps a topic of two words together. In the list on the home screen, enter
 turns a category on or off, right away, and the list stays open until esc.
-"Another subject…" opens every topic `cat list` shows, the ones that are on
-first and then the biggest. They are turned on and off the same way, and
-typing letters finds one. A topic with the name of a built-in category is not
+"Another subject…" opens the whole list of topics, the ones that are on
+first and then A to Z. They are turned on and off the same way, and typing
+letters finds one. A topic with the name of a built-in category is not
 in that list: `cat finance` is always the built-in one. Another language keeps
 the built-in categories on and turns the other topics off, because each
 dictionary has topics of its own.
