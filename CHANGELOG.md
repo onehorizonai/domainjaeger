@@ -6,6 +6,19 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-22
+
+### Changed
+
+- The categories on the home screen are a list where several can be on. Enter
+  turns a category on or off, and esc goes back.
+- "Another subject…" opens every subject `cat list` shows, to turn on and off
+  the same way. Typing letters finds one. Before, you had to type its name.
+- The home screen says "Only finance and tech" for two categories, not
+  "finance+tech".
+- Another language keeps the built-in categories of a mix and turns only the
+  typed subjects off.
+
 ### Fixed
 
 - An extension whose registry stops answering for a while no longer ends the
@@ -15,6 +28,8 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it again, and a new setting puts the extension back in the hunt.
 - A hunt with the dot inside the word no longer switches to whole words, or
   crashes, when its registry stops answering.
+- Changing the category no longer blinks the home screen, unless the
+  dictionary has to be asked for its subjects.
 
 ## [0.2.0] - 2026-10-13
 
@@ -71,6 +86,7 @@ The first public version.
 - The registries of `.es`, `.as`, `.al` and `.na` do not answer public
   lookups, so names there are never reported as available.
 
-[Unreleased]: https://github.com/onehorizonai/domainjaeger/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/onehorizonai/domainjaeger/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/onehorizonai/domainjaeger/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/onehorizonai/domainjaeger/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/onehorizonai/domainjaeger/releases/tag/v0.1.0

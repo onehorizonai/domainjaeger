@@ -1,6 +1,6 @@
 [package]
 name = "domainjaeger"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "Hunts for available domain names made of real words: cook.ing, sn.app, mike.ai"
 license = "MIT"

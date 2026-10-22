@@ -139,6 +139,9 @@ pub struct Setting {
     pub choices: Vec<Choice>,
     /// The choice that is in force, if it is one of them.
     pub current: Option<usize>,
+    /// Several choices can be on at once (see `Choice::on`): enter turns
+    /// one on or off, and the list stays open until escape.
+    pub several: bool,
 }
 
 /// One thing to pick in the list of a setting.
@@ -147,6 +150,8 @@ pub struct Choice {
     /// What it means, in a few plain words.
     pub about: String,
     pub does: Does,
+    /// In a list where several can be on: this one is.
+    pub on: bool,
 }
 
 /// What picking a choice does.
@@ -156,8 +161,11 @@ pub enum Does {
     /// Ask for a value and run `command <value>`.
     Ask {
         question: &'static str,
-        command: &'static str,
+        command: String,
     },
+    /// Open a list of its own, too long to show all at once: what `command`
+    /// prints (`cat list`), to pick from.
+    Browse(String),
 }
 
 /// Which line of the setup stands out.
@@ -290,8 +298,13 @@ pub fn choices(setting: &Setting, focused: usize) -> Vec<String> {
         .max()
         .unwrap_or(0);
     // A dot in front of what is in force now, and a hollow one in front of
-    // the rest. A list of things to do has no dots.
-    let dots = if setting.current.is_some() { 2 } else { 0 };
+    // the rest. A list of things to do has no dots. Where several can be on,
+    // a box goes in front of each one that can be turned on or off.
+    let dots = if setting.current.is_some() || setting.several {
+        2
+    } else {
+        0
+    };
     let room = (Term::stdout().size().1 as usize).saturating_sub(MARGIN + dots + width + 3 + 1);
     for (i, choice) in setting.choices.iter().enumerate() {
         let on_it = i == focused;
@@ -299,10 +312,11 @@ pub fn choices(setting: &Setting, focused: usize) -> Vec<String> {
             true => orange().bold().apply_to("›").to_string(),
             false => " ".to_string(),
         };
-        let dot = match setting.current {
-            Some(current) if current == i => format!("{} ", style("●").green()),
-            Some(_) => format!("{} ", style("○").dim()),
-            None => String::new(),
+        let dot = match (setting.several, setting.current) {
+            (true, _) => box_of(choice),
+            (false, Some(current)) if current == i => format!("{} ", style("●").green()),
+            (false, Some(_)) => format!("{} ", style("○").dim()),
+            (false, None) => String::new(),
         };
         let label = pad(&choice.label, width);
         let label = match on_it {
@@ -314,14 +328,115 @@ pub fn choices(setting: &Setting, focused: usize) -> Vec<String> {
         lines.push(line.trim_end().to_string());
     }
     lines.push(String::new());
+    let keys = match setting.several {
+        true => [
+            key("enter", "turn on or off"),
+            key("arrows", "move"),
+            key("esc", "done"),
+        ],
+        false => [
+            key("enter", "choose"),
+            key("arrows", "move"),
+            key("esc", "back"),
+        ],
+    };
+    lines.push(format!("  {}", keys.join("   ")));
+    lines
+}
+
+/// The box in front of a choice that can be on or off. One that opens or
+/// asks for something has none.
+fn box_of(choice: &Choice) -> String {
+    match (&choice.does, choice.on) {
+        (Does::Ask { .. } | Does::Browse(_), _) => "  ".to_string(),
+        (Does::Run(_), true) => format!("{} ", style("■").green()),
+        (Does::Run(_), false) => format!("{} ", style("□").dim()),
+    }
+}
+
+/// A list too long to show at once, of which several can be on, like the
+/// subjects of a dictionary: `room` lines around the one the arrow is on,
+/// and what was typed to find one. It takes the same number of lines,
+/// however far down the arrow is and however much was typed.
+pub fn long_list(
+    title: &str,
+    choices: &[Choice],
+    focused: usize,
+    find: &str,
+    room: usize,
+) -> Vec<String> {
+    let mut lines = vec![format!("{}{}", " ".repeat(MARGIN), style(title).bold())];
+    lines.push(match find.is_empty() {
+        true => format!("{}{}", " ".repeat(MARGIN), style("type to find one").dim()),
+        false => format!(
+            "{}{} {}",
+            " ".repeat(MARGIN),
+            style("find").dim(),
+            orange().bold().apply_to(find)
+        ),
+    });
+    // The window follows the arrow, and stops at the ends.
+    let first = focused
+        .saturating_sub(room / 2)
+        .min(choices.len().saturating_sub(room));
+    let shown = &choices[first..choices.len().min(first + room)];
+    let more = |n: usize| match n {
+        0 => String::new(),
+        n => format!(
+            "{}{}",
+            " ".repeat(MARGIN + 2),
+            style(format!("… {n} more")).dim()
+        ),
+    };
+    lines.push(more(first));
+    let width = shown
+        .iter()
+        .map(|choice| console::measure_text_width(&choice.label))
+        .max()
+        .unwrap_or(0)
+        .min(LONG_LABEL);
+    let columns = Term::stdout().size().1 as usize;
+    let about_room = columns.saturating_sub(MARGIN + 2 + width + 3 + 1);
+    for (i, choice) in shown.iter().enumerate() {
+        let on_it = first + i == focused;
+        let arrow = match on_it {
+            true => orange().bold().apply_to("›").to_string(),
+            false => " ".to_string(),
+        };
+        let label = pad_str(&choice.label, width, Alignment::Left, Some("…"));
+        let label = match on_it {
+            true => orange().bold().apply_to(label).to_string(),
+            false => label.to_string(),
+        };
+        let about = console::truncate_str(&choice.about, about_room, "…");
+        let line = format!("{arrow} {}{label}   {}", box_of(choice), style(about).dim());
+        lines.push(line.trim_end().to_string());
+    }
+    if choices.is_empty() {
+        let nothing = format!("nothing with \"{find}\" in it");
+        lines.push(format!(
+            "{}{}",
+            " ".repeat(MARGIN + 2),
+            style(nothing).dim()
+        ));
+    }
+    // Room that is left stays empty, so the keys stay where they are.
+    let used = shown.len().max(usize::from(choices.is_empty()));
+    lines.extend((used..room).map(|_| String::new()));
+    lines.push(more(choices.len().saturating_sub(first + room)));
+    lines.push(String::new());
     let keys = [
-        key("enter", "choose"),
+        key("enter", "turn on or off"),
         key("arrows", "move"),
-        key("esc", "back"),
+        key("letters", "find"),
+        key("esc", "done"),
     ];
     lines.push(format!("  {}", keys.join("   ")));
     lines
 }
+
+/// The longest label a long list shows in full.
+const LONG_LABEL: usize = 26;
 
 /// Print lines that were made to be drawn.
 pub fn show(lines: &[String]) {
@@ -430,8 +545,10 @@ pub enum Pressed {
     Down,
     /// Enter, space or →: do what the line the arrow is on is for.
     Go,
-    /// Escape, ← or backspace.
+    /// Escape or ←.
     Back,
+    /// Backspace: a letter less of what was typed, or else back.
+    Erase,
     /// The start of a typed command.
     Letter(char),
     Quit,
@@ -445,13 +562,19 @@ pub fn press() -> Pressed {
         Ok(Key::ArrowUp) => Pressed::Up,
         Ok(Key::ArrowDown | Key::Tab) => Pressed::Down,
         Ok(Key::Enter | Key::ArrowRight | Key::Char(' ')) => Pressed::Go,
-        Ok(Key::Escape | Key::ArrowLeft | Key::Backspace) => Pressed::Back,
+        Ok(Key::Escape | Key::ArrowLeft) => Pressed::Back,
+        Ok(Key::Backspace) => Pressed::Erase,
         // Ctrl-D, and a terminal that went away.
         Ok(Key::CtrlC | Key::Char('\u{4}')) | Err(_) => Pressed::Quit,
         // Commands start with a letter (or a question mark, for help).
         Ok(Key::Char(letter)) if letter.is_alphabetic() || letter == '?' => Pressed::Letter(letter),
         Ok(_) => Pressed::Other,
     }
+}
+
+/// How many lines the terminal has.
+pub fn rows() -> usize {
+    Term::stdout().size().0 as usize
 }
 
 /// Can the setup be driven with the arrow keys here? Not when the input is
@@ -555,6 +678,16 @@ fn icon(status: Status) -> String {
         Status::Available => style("■").green().bold().to_string(),
         Status::Taken => style("□").red().to_string(),
         Status::Unknown => style("▒").yellow().to_string(),
+    }
+}
+
+/// "finance", "finance and tech", "finance, tech and names": the parts of
+/// a combination of categories, as they are said.
+pub fn listed(name: &str) -> String {
+    let parts: Vec<&str> = name.split('+').collect();
+    match parts.split_last() {
+        Some((last, rest)) if !rest.is_empty() => format!("{} and {last}", rest.join(", ")),
+        _ => name.to_string(),
     }
 }
 
@@ -706,7 +839,7 @@ pub fn remark(round: &Round, wanted: usize, category: Option<&Category>, lang: L
     } else if let Some(category) = category.filter(|_| round.exhausted && found < wanted) {
         format!(
             "That was every {} word {} has for these extensions. Try another one with `cat`, or `cat off` for the whole dictionary.",
-            category.name,
+            listed(&category.name),
             lang.dictionary()
         )
     } else if round.exhausted && found < wanted {
@@ -1284,6 +1417,9 @@ mod tests {
 
     #[test]
     fn numbers_days_and_names_read_well() {
+        assert_eq!(listed("finance"), "finance");
+        assert_eq!(listed("finance+tech"), "finance and tech");
+        assert_eq!(listed("finance+tech+names"), "finance, tech and names");
         assert_eq!(thousands(0), "0");
         assert_eq!(thousands(999), "999");
         assert_eq!(thousands(1_000), "1,000");
@@ -1329,6 +1465,7 @@ mod tests {
             nudge: false,
             choices: Vec::new(),
             current: None,
+            several: false,
         }
     }
 
@@ -1372,6 +1509,7 @@ mod tests {
             label: label.to_string(),
             about: "what it means".to_string(),
             does: Does::Run(String::new()),
+            on: false,
         };
         let mut setting = line("Language", "English", None);
         setting.choices = vec![pick("English"), pick("Dutch")];
@@ -1392,5 +1530,87 @@ mod tests {
             assert!(plain[2].starts_with('›'));
             assert_eq!(start(&plain[1], "what"), start(&plain[2], "what"));
         }
+    }
+
+    #[test]
+    fn a_long_list_shows_the_part_around_the_arrow() {
+        let subjects: Vec<Choice> = (0..40)
+            .map(|n| Choice {
+                label: format!("Subject {n}"),
+                about: format!("{} words", 1000 - n),
+                does: Does::Run(format!("cat subject {n}")),
+                on: n == 21,
+            })
+            .collect();
+        let draw = |focused: usize, find: &str, choices: &[Choice]| -> Vec<String> {
+            let lines = long_list("Another subject", choices, focused, find, 10);
+            let plain = lines.iter().map(|line| console::strip_ansi_codes(line));
+            plain.map(|line| line.into_owned()).collect()
+        };
+        let top = draw(0, "", &subjects);
+        assert_eq!(top[0], "  Another subject");
+        assert_eq!(top[1], "  type to find one");
+        assert_eq!(top[2], "");
+        assert!(top[3].starts_with("› □ Subject 0 "), "{}", top[3]);
+        assert_eq!(top[13], "    … 30 more");
+        assert_eq!(
+            top.last().unwrap(),
+            "  enter turn on or off   arrows move   letters find   esc done"
+        );
+        // Further down the arrow stays in the middle, with more on both sides.
+        let middle = draw(21, "sub", &subjects);
+        assert_eq!(middle[1], "  find sub");
+        assert_eq!(middle[2], "    … 16 more");
+        assert!(middle[8].starts_with("› ■ Subject 21 "), "{}", middle[8]);
+        assert_eq!(middle[13], "    … 14 more");
+        // At the end it stops, and nothing found is said so.
+        let end = draw(39, "", &subjects);
+        assert!(end[12].starts_with("› □ Subject 39 "), "{}", end[12]);
+        assert_eq!(end[13], "");
+        let none = draw(0, "xyz", &[]);
+        assert_eq!(none[3], "    nothing with \"xyz\" in it");
+        // However far down, however much was found: the same height.
+        assert!(
+            [&middle, &end, &none]
+                .iter()
+                .all(|lines| lines.len() == top.len())
+        );
+    }
+
+    #[test]
+    fn a_list_of_several_has_a_box_for_each() {
+        let pick = |label: &str, on: bool| Choice {
+            label: label.to_string(),
+            about: "what it means".to_string(),
+            does: Does::Run(String::new()),
+            on,
+        };
+        let mut setting = line("Category", "Only finance and tech", None);
+        setting.several = true;
+        setting.current = Some(1);
+        setting.choices = vec![
+            pick("All words", false),
+            pick("finance", true),
+            pick("product", false),
+            Choice {
+                label: "Another subject…".to_string(),
+                about: "what it means".to_string(),
+                does: Does::Browse("cat list".to_string()),
+                on: false,
+            },
+        ];
+        let plain: Vec<String> = choices(&setting, 2)
+            .iter()
+            .map(|line| console::strip_ansi_codes(line).into_owned())
+            .collect();
+        assert!(plain[1].starts_with("  □ All words"), "{}", plain[1]);
+        assert!(plain[2].starts_with("  ■ finance"), "{}", plain[2]);
+        assert!(plain[3].starts_with("› □ product"), "{}", plain[3]);
+        // Opening the other subjects is something to do, not to turn on.
+        assert!(plain[4].starts_with("    Another subject"), "{}", plain[4]);
+        assert_eq!(
+            plain.last().unwrap(),
+            "  enter turn on or off   arrows move   esc done"
+        );
     }
 }
