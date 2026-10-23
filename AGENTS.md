@@ -239,7 +239,10 @@ makes one kind only: `doubled`, `dropped`, `sound`, `swapped` or `missing`.
 ends in, like `.nl` and `.com`. The name is the word itself (`lemon.nl`) or a
 small typo of it. It is hunted in `.nl` unless you name other extensions.
 domainjaeger switches to this style by itself when the extensions you picked
-have no words left with the dot inside.
+have no words left with the dot inside. A word you try with `c` gets the same
+treatment: when none of the extensions you picked fits its end (lemon in
+`.nl` and `.com`), the whole word goes before the dot, and a line says so. The
+name style stays as it was.
 
 The hunt starts with the best known words and works its way down. Per word it
 tries the word and its most natural typo first, and the clumsier typos only
