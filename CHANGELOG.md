@@ -13,6 +13,10 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A word you try with `c` is checked as a whole word before the dot
+  (lemon.nl) when none of the extensions you picked fits its end. Before,
+  it said that no extension fits and checked nothing. With typos off, that
+  message no longer mentions spelling mistakes.
 - A topic of the English Wiktionary takes in the topics under it, in English,
   Latin and Spanish. Animals itself holds hardly an animal: they are under
   Mammals, Birds and Fish. A hunt in Animals found two English words of one

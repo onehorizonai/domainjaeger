@@ -115,6 +115,9 @@ pub struct Looked {
     pub tone: String,
     /// The verdict on every name the word allows.
     pub records: Vec<Record>,
+    /// No extension fits the end of the word, so the names are the whole
+    /// word before the dot.
+    pub whole_instead: bool,
 }
 
 pub enum Event {
@@ -236,6 +239,8 @@ pub struct Hunter {
     carry: VecDeque<Record>,
     /// Set when the hunt is limited to a category.
     topical: Option<Topical>,
+    /// The user picked the TLDs (as opposed to "all of them").
+    focused: bool,
 }
 
 impl Hunter {
@@ -347,6 +352,7 @@ impl Hunter {
             seen: HashSet::new(),
             carry: VecDeque::new(),
             topical,
+            focused,
         }
     }
 
@@ -520,14 +526,24 @@ impl Hunter {
             ..Word::default()
         });
         let (typos, min_label) = (self.settings.typos, self.settings.min_label);
-        let candidates = if self.settings.whole {
+        let whole_names = || -> Vec<Candidate> {
             self.tlds()
                 .iter()
                 .flat_map(|tld| self.settings.whole_names(&word, tld))
                 .collect()
+        };
+        let mut candidates = if self.settings.whole {
+            whole_names()
         } else {
             candidates_for_word(&word, &self.tlds(), typos, min_label)
         };
+        // Hardly any word ends in com or nl. Rather than check nothing, the
+        // whole word goes before the dot, as in a hunt that runs dry. Not in
+        // every extension at once, though: that is hundreds of names.
+        let whole_instead = candidates.is_empty() && !self.settings.whole && self.focused;
+        if whole_instead {
+            candidates = whole_names();
+        }
 
         let mut records = Vec::new();
         let mut tasks: JoinSet<(Candidate, Verdict)> = JoinSet::new();
@@ -569,6 +585,7 @@ impl Hunter {
             known: in_dictionary,
             meaning: meaning.filter(|m| !m.is_empty()),
             tone,
+            whole_instead: whole_instead && !records.is_empty(),
             records,
         })
     }
@@ -1487,15 +1504,45 @@ mod tests {
         let made_up = hunter.check_word("zzzing", &mut |_| {}).await.unwrap();
         assert!(!made_up.known);
         assert_eq!(domains(&made_up.records), vec!["zzz.ing", "zzzi.ng"]);
-        // And one that fits nowhere gives nothing to check.
-        assert!(
-            hunter
-                .check_word("lemon", &mut |_| {})
-                .await
-                .unwrap()
-                .records
-                .is_empty()
+        assert!(!made_up.whole_instead);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_word_no_extension_fits_goes_before_the_dot() {
+        let world = World::new();
+        world.registry("ing").registry("ng").taken(&["lemon.ng"]);
+        world.otherwise_quiet();
+        let hunter = world.hunter(&["ing", "ng"], testing::settings());
+        let looked = hunter.check_word("lemon", &mut |_| {}).await.unwrap();
+        assert!(looked.whole_instead);
+        let mut verdicts: Vec<(&str, Status)> = looked
+            .records
+            .iter()
+            .map(|r| (r.domain.as_str(), r.status))
+            .collect();
+        verdicts.sort_by_key(|(domain, _)| *domain);
+        assert_eq!(
+            verdicts,
+            vec![
+                ("lemon.ing", Status::Available),
+                ("lemon.ng", Status::Taken)
+            ]
         );
+        // The name style stays what it was.
+        assert!(!hunter.settings.whole);
+
+        // Every extension at once would be hundreds of names.
+        let everywhere = Hunter::new(
+            world.wiki(&[1, 2, 3]),
+            world.checker(),
+            world.cache.clone(),
+            vec!["ing".into(), "ng".into()],
+            false,
+            testing::settings(),
+        );
+        let looked = everywhere.check_word("melon", &mut |_| {}).await.unwrap();
+        assert!(!looked.whole_instead);
+        assert!(looked.records.is_empty());
     }
 
     #[tokio::test(start_paused = true)]

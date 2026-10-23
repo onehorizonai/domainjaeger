@@ -158,6 +158,7 @@ impl App {
             meaning,
             tone,
             mut records,
+            whole_instead,
         } = result?;
 
         let syllables = records.first().and_then(|r| r.syllables);
@@ -184,10 +185,18 @@ impl App {
             ui::info(&parts.join(&style(" · ").dim().to_string()));
         }
         if records.is_empty() {
-            ui::info(
-                "No extension fits the end of this word, not even with a small spelling mistake.",
-            );
+            ui::info(if self.hunter.settings.typos.is_off() {
+                "No extension fits the end of this word."
+            } else {
+                "No extension fits the end of this word, not even with a small spelling mistake."
+            });
         } else {
+            if whole_instead {
+                ui::info(&format!(
+                    "{word} does not end in {}, so the whole word goes before the dot.",
+                    self.dotted(&self.hunter.tlds())
+                ));
+            }
             records.sort_by_key(|r| {
                 (
                     r.status != Status::Available,
